@@ -1,0 +1,47 @@
+[paths]
+youtube_dir = "~/Music/Youtube"
+library_dir = "/Volumes/musics"
+
+[tools]
+ffmpeg = "ffmpeg"
+atomicparsley = "AtomicParsley"
+yt-dlp = "yt-dlp"
+
+[download]
+user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+referer = "https://www.youtube.com/"
+
+[album]
+format = "{artist}のお歌"
+
+[channels."春猿火 ⧸ Harusaruhi"]
+artist = "春猿火"
+category = "神椿Studio"
+
+[channels.KAF]
+artist = "花譜"
+category = "神椿Studio"
+
+[channels.RIM]
+artist = "理芽"
+category = "神椿Studio"
+
+[channels."幸祜 - KOKO -"]
+artist = "KOKO"
+category = "神椿Studio"
+
+[channels."ヰ世界情緒 -Isekaijoucho-"]
+artist = "ヰ世界情緒"
+category = "神椿Studio"
+
+[channels."HIMEHINA Channel"]
+artist = "HIMEHINA"
+category = "Vtuber"
+
+[channels.VALIS]
+artist = "VALIS"
+category = "深脊界Studio"
+
+[channels."明透 -ᴀsᴜ-"]
+artist = "明透"
+category = "深脊界Studio"

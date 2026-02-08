@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ytmusic"
+version = "0.1.0"
+description = "YouTube music post-processor for yt-dlp downloads"
+requires-python = ">=3.11"
+dependencies = [
+    "mutagen>=1.47",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+ytmusic = "ytmusic.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ytmusic"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
