@@ -2,7 +2,7 @@
 
 import pytest
 
-from ytmusic.parser import parse_title
+from ytmusic.parser import diagnose_parse_failure, parse_title
 
 # (raw_title, channel_artist, expected_title, expected_artists, expected_pattern_id)
 CASES = [
@@ -656,3 +656,77 @@ def test_parse_title(
     assert result.title == expected_title, f"Title mismatch for: {raw_title}"
     assert result.artists == expected_artists, f"Artists mismatch for: {raw_title}"
     assert result.pattern_id == expected_pattern_id, f"Pattern mismatch for: {raw_title}"
+
+
+# =============================================================================
+# diagnose_parse_failure tests
+# =============================================================================
+
+
+class TestDiagnoseParseFailure:
+    def test_cover_category(self) -> None:
+        diag = diagnose_parse_failure(
+            "【歌ってみた】新曲テスト", "KAF", "花譜",
+        )
+        assert diag.likely_category == "cover"
+        assert "歌ってみた" in diag.detected_keywords
+
+    def test_original_category(self) -> None:
+        diag = diagnose_parse_failure(
+            "アーティスト「新曲」【オリジナルMV】", "KAF", "花譜",
+        )
+        assert diag.likely_category == "original"
+        assert "オリジナルMV" in diag.detected_keywords
+
+    def test_live_category(self) -> None:
+        diag = diagnose_parse_failure(
+            "新曲 Live ver. at イベント", "VALIS", "VALIS",
+        )
+        assert diag.likely_category == "live"
+        assert "Live ver." in diag.detected_keywords
+
+    def test_unknown_category(self) -> None:
+        diag = diagnose_parse_failure(
+            "全くマッチしないタイトル", "TEST", "テスト",
+        )
+        assert diag.likely_category == "unknown"
+        assert diag.detected_keywords == []
+
+    def test_structural_features_detected(self) -> None:
+        diag = diagnose_parse_failure(
+            "【歌ってみた】「テスト曲 ⧸ 作者」by アーティスト", "KAF", "花譜",
+        )
+        assert "「」brackets" in diag.structural_features
+        assert "【】brackets" in diag.structural_features
+        assert "⧸ separator" in diag.structural_features
+
+    def test_claude_prompt_contains_title(self) -> None:
+        diag = diagnose_parse_failure(
+            "テストタイトル", "KAF", "花譜",
+        )
+        assert "テストタイトル" in diag.claude_prompt
+        assert "KAF" in diag.claude_prompt
+        assert "花譜" in diag.claude_prompt
+
+    def test_claude_prompt_contains_pattern_list(self) -> None:
+        diag = diagnose_parse_failure(
+            "テストタイトル", "KAF", "花譜",
+        )
+        assert "C1:" in diag.claude_prompt
+        assert "O1:" in diag.claude_prompt
+        assert "L1:" in diag.claude_prompt
+        assert "既存パターン一覧:" in diag.claude_prompt
+
+    def test_claude_prompt_contains_category(self) -> None:
+        diag = diagnose_parse_failure(
+            "【歌ってみた】新曲テスト", "KAF", "花譜",
+        )
+        assert "推定カテゴリ: cover" in diag.claude_prompt
+
+    def test_fields_preserved(self) -> None:
+        diag = diagnose_parse_failure(
+            "raw title", "CH_DIR", "artist_name",
+        )
+        assert diag.raw_title == "raw title"
+        assert diag.channel_dir == "CH_DIR"
+        assert diag.channel_artist == "artist_name"

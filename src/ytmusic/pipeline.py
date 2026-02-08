@@ -11,7 +11,7 @@ from .audio import calculate_r128_gain, extract_artwork, extract_opus
 from .config import Config
 from .models import ProcessingResult, SourceFiles, TrackMetadata
 from .organizer import compute_paths, get_next_track_number, place_files
-from .parser import parse_title
+from .parser import diagnose_parse_failure, parse_title
 from .tagger import tag_opus
 
 logger = logging.getLogger(__name__)
@@ -188,6 +188,11 @@ def run_pipeline(
     for i, source in enumerate(sources, 1):
         metadata = build_metadata(source, config)
         if metadata is None:
+            ch_config = config.get_channel(source.channel_dir)
+            ch_artist = ch_config.artist if ch_config else "Unknown"
+            diag = diagnose_parse_failure(
+                source.raw_title, source.channel_dir, ch_artist,
+            )
             results.append(ProcessingResult(
                 source=source,
                 metadata=TrackMetadata(
@@ -197,7 +202,11 @@ def run_pipeline(
                     album_artist="",
                     category="",
                 ),
-                errors=[f"Failed to parse: {source.raw_title}"],
+                errors=[
+                    f"Failed to parse: {source.raw_title} "
+                    f"(推定カテゴリ: {diag.likely_category})",
+                    diag.claude_prompt,
+                ],
             ))
             continue
 

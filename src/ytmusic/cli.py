@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .config import Config, find_config
 from .downloader import download, get_chrome_user_agent, update_config_ua
-from .parser import parse_title
+from .parser import diagnose_parse_failure, parse_title
 from .pipeline import discover_files, build_metadata, run_pipeline
 
 
@@ -46,6 +46,7 @@ def cmd_scan(args: argparse.Namespace) -> None:
         print("No unprocessed files found")
         return
     print(f"Found {len(sources)} unprocessed file(s):\n")
+    failures: list[tuple[str, str, str]] = []  # (raw_title, channel_dir, artist)
     for s in sources:
         ch_config = config.get_channel(s.channel_dir)
         artist = ch_config.artist if ch_config else "?"
@@ -54,18 +55,36 @@ def cmd_scan(args: argparse.Namespace) -> None:
         if meta:
             print(f"    → {meta.title} / {', '.join(meta.artists)}")
         else:
-            print("    → PARSE ERROR")
+            diag = diagnose_parse_failure(s.raw_title, s.channel_dir, artist)
+            print(f"    → PARSE ERROR (推定カテゴリ: {diag.likely_category})")
+            failures.append((s.raw_title, s.channel_dir, artist))
+    if failures:
+        print(f"\n--- パース失敗: {len(failures)} 件 ---")
+        print("以下を Claude に貼り付けてパターン追加を依頼できます:\n")
+        for raw_title, channel_dir, artist in failures:
+            diag = diagnose_parse_failure(raw_title, channel_dir, artist)
+            print(diag.claude_prompt)
+            print()
 
 
 def cmd_parse(args: argparse.Namespace) -> None:
     config = Config.load(find_config(args.config))
     title = args.title
     ch_config = config.get_channel(args.channel) if args.channel else None
+    channel_dir = args.channel or "UNKNOWN"
     channel_artist = ch_config.artist if ch_config else "Unknown"
 
     result = parse_title(title, channel_artist)
     if result is None:
+        diag = diagnose_parse_failure(title, channel_dir, channel_artist)
         print(f"No pattern matched: {title}")
+        print(f"推定カテゴリ: {diag.likely_category}")
+        if diag.detected_keywords:
+            print(f"検出キーワード: {', '.join(diag.detected_keywords)}")
+        if diag.structural_features:
+            print(f"構造的特徴: {', '.join(diag.structural_features)}")
+        print(f"\n--- Claude に貼り付け用プロンプト ---\n")
+        print(diag.claude_prompt)
         sys.exit(1)
 
     print(f"Pattern:  {result.pattern_id}")

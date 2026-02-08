@@ -1,13 +1,13 @@
 """Title parser: extract metadata from YouTube video titles.
 
-12 patterns applied in priority order; first match wins.
+17 patterns applied in priority order; first match wins.
 """
 
 from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .models import VALIS_MEMBERS
 
@@ -458,3 +458,136 @@ _PATTERNS = [
     _c8,   # <曲> (Rearranged Ver.) - <歌手> ⧸ ...
     _o9,   # <歌手> - <曲> ⧸ <英名> - <英曲名>
 ]
+
+
+# =============================================================================
+# Parse failure diagnosis
+# =============================================================================
+
+_CATEGORY_KEYWORDS: dict[str, list[str]] = {
+    "cover": [
+        "歌ってみた", "covered by", "Covered by", "Cover", "cover",
+        "カバー",
+    ],
+    "original": [
+        "オリジナルMV", "Official Music Video", "Official Lyric Video",
+        "オリジナル曲", "Original",
+    ],
+    "live": [
+        "Live ver.", "LIVE Video", "Live", "ライブ",
+    ],
+}
+
+_PATTERN_SUMMARIES: list[tuple[str, str]] = [
+    ("C1", "【歌ってみた】「<曲> ⧸ <原曲者>」covered by <歌手>"),
+    ("C2", "【歌ってみた】<曲> ⧸ covered by <歌手>"),
+    ("C5", "【歌ってみた】<曲> - <原曲者> covered by <歌手>"),
+    ("C6", "<曲> - <原曲者> Covered by <歌手> ⧸ <英名>"),
+    ("C7", "HIMEHINA『<曲>』Cover"),
+    ("C4", "【歌ってみた】<曲> Covered by <歌手>【...】"),
+    ("C3", "【歌ってみた】<曲> by <歌手>"),
+    ("C8", "<曲> (Rearranged Ver.) - <歌手> ⧸ <英名>"),
+    ("O3", "【組曲N】<歌手> #<番号> 「<曲>」【オリジナルMV】"),
+    ("O1-R", "<歌手> #<番号>「<曲>(Rearranged ver.)」【オリジナルMV】"),
+    ("O1", "<歌手> #<番号>「<曲>」【オリジナルMV】"),
+    ("O5", "No.<番号>　<歌手> -<英名>- 「<曲>」【...】"),
+    ("O6", "【ソロオリジナルMV】VALIS − <番号>「<曲>」by <歌手>【...】"),
+    ("O7", "【オリジナルMV】VALIS − <番号>「<曲>」【合唱】"),
+    ("O8", "HIMEHINA『<曲>』MV #<タグ>"),
+    ("O9", "<歌手> - <曲> ⧸ <英名> - <英曲名>"),
+    ("L1", "【VALIS】<曲> #<イベント> Live ver.【...】"),
+]
+
+_STRUCTURAL_FEATURES: list[tuple[str, str]] = [
+    (r"「.*?」", "「」brackets"),
+    (r"『.*?』", "『』brackets"),
+    (r"【.*?】", "【】brackets"),
+    (r"⧸", "⧸ separator"),
+    (r"#\s*\d+", "#number"),
+    (r"No\.\d+", "No.number"),
+    (r"×", "× joint"),
+    (r"\(from\s+.+\)", "(from ...) suffix"),
+    (r"\bwith\s+\S+", "with <name>"),
+    (r"\bfeat\.\s*\S+", "feat. <name>"),
+]
+
+
+@dataclass
+class ParseDiagnosis:
+    """Diagnosis information for a parse failure."""
+
+    raw_title: str
+    channel_dir: str
+    channel_artist: str
+    likely_category: str  # "cover", "original", "live", or "unknown"
+    detected_keywords: list[str] = field(default_factory=list)
+    structural_features: list[str] = field(default_factory=list)
+    claude_prompt: str = ""
+
+
+def diagnose_parse_failure(
+    raw_title: str,
+    channel_dir: str,
+    channel_artist: str,
+) -> ParseDiagnosis:
+    """Analyze a title that failed to match any pattern and produce diagnostic info.
+
+    Returns a ParseDiagnosis with category estimation and a Claude-ready prompt.
+    """
+    title = _nfc(raw_title.strip())
+
+    # Detect category keywords
+    detected_keywords: list[str] = []
+    likely_category = "unknown"
+    for category, keywords in _CATEGORY_KEYWORDS.items():
+        for kw in keywords:
+            if kw in title:
+                detected_keywords.append(kw)
+                if likely_category == "unknown":
+                    likely_category = category
+
+    # Detect structural features
+    structural_features: list[str] = []
+    for pattern, label in _STRUCTURAL_FEATURES:
+        if re.search(pattern, title):
+            structural_features.append(label)
+
+    # Build Claude prompt
+    patterns_list = "\n".join(
+        f"  {pid}: {desc}" for pid, desc in _PATTERN_SUMMARIES
+    )
+
+    features_info = ""
+    if detected_keywords:
+        features_info += f"  検出キーワード: {', '.join(detected_keywords)}\n"
+    if structural_features:
+        features_info += f"  構造的特徴: {', '.join(structural_features)}\n"
+
+    claude_prompt = (
+        "ytmusic の parser.py に新しいパターンを追加してください。\n"
+        "\n"
+        "以下のタイトルがどのパターンにもマッチしませんでした:\n"
+        "\n"
+        f"  タイトル: {title}\n"
+        f"  チャンネル: {channel_dir}\n"
+        f"  チャンネルアーティスト: {channel_artist}\n"
+        f"  推定カテゴリ: {likely_category}\n"
+        f"{features_info}"
+        "\n"
+        "既存パターン一覧:\n"
+        f"{patterns_list}\n"
+        "\n"
+        "このタイトルにマッチする新しいパターン関数を _PATTERNS リストの適切な位置に追加し、\n"
+        "tests/test_parser.py に対応するテストケースも追加してください。\n"
+        "既存パターンとの干渉に注意し、パターンの優先順位を考慮してください。"
+    )
+
+    return ParseDiagnosis(
+        raw_title=raw_title,
+        channel_dir=channel_dir,
+        channel_artist=channel_artist,
+        likely_category=likely_category,
+        detected_keywords=detected_keywords,
+        structural_features=structural_features,
+        claude_prompt=claude_prompt,
+    )
