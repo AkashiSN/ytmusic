@@ -8,7 +8,7 @@ atomicparsley = "AtomicParsley"
 yt-dlp = "yt-dlp"
 
 [download]
-user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
 referer = "https://www.youtube.com/"
 
 [album]
