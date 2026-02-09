@@ -42,7 +42,7 @@ download → discover → parse → extract(webm→opus) → artwork → R128 �
 | `cli.py` | argparse による CLI エントリポイント（`ytmusic.cli:main`） |
 | `config.py` | TOML 設定ファイル読み込み（`tomllib`）。優先順位: `--config` > `YTMUSIC_CONFIG` env > `~/.config/ytmusic/config.toml` |
 | `models.py` | `TrackMetadata`, `SourceFiles`, `ProcessingResult` の frozen dataclass。ファイル名サニタイズ（NFC 正規化 + FileOps 互換置換テーブル） |
-| `parser.py` | **最重要モジュール**。17 種の正規表現パターン（C1-C8: カバー、O1-O9: オリジナル、L1: ライブ）を優先順位付きで適用し、タイトル・アーティスト・カバー判定等を抽出 |
+| `parser.py` | **最重要モジュール**。17 種の正規表現パターン（C1-C8: カバー、O1-O9: オリジナル、L1: ライブ）を優先順位付きで適用し、タイトル・アーティスト・カバー判定等を抽出。前処理で `(from <event>)` → ライブ検出、`with <name>` → suffix 前挿入も行う |
 | `downloader.py` | yt-dlp ラッパー。webm（音声）+ m4a（サムネイル付き）をダウンロード。UA は設定ファイルで直接管理 |
 | `audio.py` | ffmpeg（Opus 抽出、R128 計算）と AtomicParsley（アートワーク抽出）のラッパー |
 | `tagger.py` | mutagen で Opus ファイルに Vorbis Comment を書き込み（TITLE, ARTIST, ALBUM, R128_TRACK_GAIN, METADATA_BLOCK_PICTURE 等） |

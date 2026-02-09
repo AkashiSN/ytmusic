@@ -116,6 +116,10 @@ ytmusic parse "【歌ってみた】1ピース by 花譜" --channel KAF
   ├─ ORGANIZE   ファイルを最終パスへ配置:
   │              Opus(タグ付) → /Volumes/musics/Opus/<Cat>/<Artist>/<Album>/
   │              webm(コピー) → /Volumes/musics/Original/<Cat>/<Artist>/<Album>/
+  │              ソースファイル処理:
+  │                デフォルト     → youtube_dir に残す
+  │                --move-sources → Original/にコピー後、ソースを削除
+  │                --clean-sources→ バックアップなし、ソースを削除
   └─ PLAYLIST   影響するアーティスト/カテゴリのm3u8プレイリストを自動再生成
 ```
 
@@ -207,7 +211,7 @@ output_dir = "Playlists/m3u8"
 | O3 | `【組曲N】<歌手> #<番号> 「<曲>」【オリジナルMV】` | 撃って |
 | O1-R | `<歌手> #<番号>「<曲>(Rearranged ver.)」【オリジナルMV】` | BREATHE (Rearranged Ver.) |
 | O1 | `<歌手> #<番号>「<曲>」【オリジナルMV】` | YONA YONA feat. Rin音 |
-| O5 | `No.<番号>　<歌手> -<英名>- 「<曲>」【...】` | 在処 |
+| O5 | `No.<番号>　<歌手> -<英名>- 「<曲>」【...】` | 在処 / ANTINOMY 【PLAYER Ⅲ Live ver.】 |
 | O6 | `【ソロオリジナルMV】VALIS − <番号>「<曲>」by <歌手>【...】` | βlack Swan |
 | O7 | `【オリジナルMV】VALIS − <番号>「<曲>」【合唱】` | 共振ハートビート |
 | O8 | `HIMEHINA『<曲>』MV #<タグ>` | V |
@@ -223,8 +227,20 @@ output_dir = "Playlists/m3u8"
 
 パターンマッチの前に以下を処理する:
 
-- `(from <イベント>)` を末尾から除去し、live_eventとして保存
+- `(from <イベント> <日付>)` を末尾から除去し、ライブバージョンとして処理:
+  - 日付（`2025.7.21` 形式）を自動除去
+  - タイトルに `【<イベント名> Live ver.】` を付与、`is_live=True` を設定
+  - 例: `... (from CREAM PUFF LIVE 4 2025.7.21)` → `【CREAM PUFF LIVE 4 Live ver.】`
 - `with <名前>` を末尾から除去し、タイトルとアーティストに追加
+  - `with` は `(Cover)` / `(Rearranged Ver.)` の前に挿入される
+  - 例: `チルドレンレコード with 梓川 (Cover) 【CREAM PUFF LIVE 4 Live ver.】`
+
+### O5 ライブ検出
+
+O5 パターンで【】内が `LIVE Video from ... 「<イベント名>」` の場合、ライブバージョンとして処理:
+- タイトルに `【<イベント名> Live ver.】` を付与
+- Unicode ローマ数字（Ⅰ-Ⅻ）の前にスペースを自動挿入（`PLAYERⅢ` → `PLAYER Ⅲ`）
+- 例: `ANTINOMY 【PLAYER Ⅲ Live ver.】`
 
 ## メタデータルール
 
