@@ -20,7 +20,7 @@ uv run pytest tests/test_parser.py -v -k "test_name"
 
 # CLI 実行
 uv run ytmusic <command>
-# コマンド: download, update-ua, scan, parse, process
+# コマンド: download, update-ua, scan, parse, process, playlist
 ```
 
 外部ツール依存: `ffmpeg`, `yt-dlp`, `AtomicParsley`（すべて PATH に必要）
@@ -30,7 +30,7 @@ uv run ytmusic <command>
 ### パイプライン構成
 
 ```
-download → discover → parse → extract(webm→opus) → artwork → R128 → tag → organize
+download → discover → parse → extract(webm→opus) → artwork → R128 → tag → organize → playlist
 ```
 
 `pipeline.py` がオーケストレータとして各モジュールを呼び出す。
@@ -47,7 +47,8 @@ download → discover → parse → extract(webm→opus) → artwork → R128 �
 | `audio.py` | ffmpeg（Opus 抽出、R128 計算）と AtomicParsley（アートワーク抽出）のラッパー |
 | `tagger.py` | mutagen で Opus ファイルに Vorbis Comment を書き込み（TITLE, ARTIST, ALBUM, R128_TRACK_GAIN, METADATA_BLOCK_PICTURE 等） |
 | `organizer.py` | トラック番号の自動採番とライブラリディレクトリへのファイル配置 |
-| `pipeline.py` | 全体のオーケストレーション。dry-run / interactive モード対応 |
+| `playlist.py` | m3u8 プレイリスト生成。`.exclude` 対応の再帰走査、アーティスト/カテゴリ単位の生成 |
+| `pipeline.py` | 全体のオーケストレーション。dry-run / interactive モード対応。処理後のプレイリスト自動再生成 |
 
 ### 重要な設計判断
 
@@ -56,7 +57,9 @@ download → discover → parse → extract(webm→opus) → artwork → R128 �
 - **ファイル名サニタイズ**: タグ用（NFC のみ）とファイル名用（置換テーブル適用）で別ルール
 - **VALIS コーラスメンバー**: 7名のハードコードリストによる特殊処理あり
 - **エラー蓄積**: `ProcessingResult` でエラーを収集しつつ処理を継続
+- **プレイリスト**: `process` 後にデフォルトで影響プレイリストを自動再生成（`--no-playlist` で無効化）。`[playlists]` 未設定時は既存機能に影響なし
 
 ### テスト
 
-テストは `tests/test_parser.py` に集中（83 ケースのパラメトリックテスト）。実際の YouTube 動画タイトルを使った parser の回帰テストが中心。新しいパターンを追加する際は必ず対応するテストケースを追加すること。
+- `tests/test_parser.py`: 83 ケースのパラメトリックテスト。実際の YouTube 動画タイトルを使った parser の回帰テストが中心。新しいパターンを追加する際は必ず対応するテストケースを追加すること。
+- `tests/test_playlist.py`: プレイリスト生成のユニットテスト（ファイル収集、`.exclude`、再帰走査、m3u8 出力形式等）。

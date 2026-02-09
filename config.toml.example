@@ -45,3 +45,22 @@ category = "深脊界Studio"
 [channels."明透 -ᴀsᴜ-"]
 artist = "明透"
 category = "深脊界Studio"
+
+# Playlist generation settings
+[playlists]
+output_dir = "Playlists/m3u8"
+
+[playlists.artists]
+"花譜" = "神椿Studio/花譜"
+"理芽" = "神椿Studio/理芽"
+"春猿火" = "神椿Studio/春猿火"
+"ヰ世界情緒" = "神椿Studio/ヰ世界情緒"
+"KOKO" = "神椿Studio/KOKO"
+"HIMEHINA" = "Vtuber/HIMEHINA"
+"VALIS" = "深脊界Studio/VALIS"
+"明透" = "深脊界Studio/明透"
+
+[playlists.categories]
+"神椿Studio" = "神椿Studio"
+"Vtuber" = "Vtuber"
+"深脊界Studio" = "深脊界Studio"

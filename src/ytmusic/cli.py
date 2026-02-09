@@ -11,6 +11,7 @@ from .config import Config, find_config
 from .downloader import download, get_chrome_user_agent, update_config_ua
 from .parser import diagnose_parse_failure, parse_title
 from .pipeline import discover_files, build_metadata, run_pipeline
+from .playlist import generate_all_playlists, generate_artist_playlist, generate_category_playlist
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -28,6 +29,7 @@ def cmd_process(args: argparse.Namespace) -> None:
         channel=args.channel,
         dry_run=args.dry_run,
         interactive=args.interactive,
+        regenerate_playlists=not args.no_playlist,
     )
     errors = [r for r in results if r.errors]
     if errors:
@@ -98,6 +100,32 @@ def cmd_parse(args: argparse.Namespace) -> None:
         print(f"Event:    {result.live_event}")
 
 
+def cmd_playlist(args: argparse.Namespace) -> None:
+    config = Config.load(find_config(args.config))
+    if not config.playlist_artists and not config.playlist_categories:
+        print("No playlists configured. Add [playlists] section to config.", file=sys.stderr)
+        sys.exit(1)
+    if args.artist:
+        if args.artist not in config.playlist_artists:
+            print(f"Unknown artist: {args.artist}", file=sys.stderr)
+            print(f"Available: {', '.join(config.playlist_artists)}", file=sys.stderr)
+            sys.exit(1)
+        p = generate_artist_playlist(args.artist, config)
+        print(f"Generated: {p}")
+    elif args.category:
+        if args.category not in config.playlist_categories:
+            print(f"Unknown category: {args.category}", file=sys.stderr)
+            print(f"Available: {', '.join(config.playlist_categories)}", file=sys.stderr)
+            sys.exit(1)
+        p = generate_category_playlist(args.category, config)
+        print(f"Generated: {p}")
+    else:
+        generated = generate_all_playlists(config)
+        print(f"Generated {len(generated)} playlist(s)")
+        for p in generated:
+            print(f"  {p.name}")
+
+
 def cmd_download(args: argparse.Namespace) -> None:
     config = Config.load(find_config(args.config))
     urls: list[str] = []
@@ -142,6 +170,7 @@ def main(argv: list[str] | None = None) -> None:
     p_process.add_argument("-n", "--dry-run", action="store_true", help="Preview only")
     p_process.add_argument("--channel", help="Process specific channel only")
     p_process.add_argument("-i", "--interactive", action="store_true", help="Confirm each track")
+    p_process.add_argument("--no-playlist", action="store_true", help="Skip playlist regeneration")
 
     # scan
     p_scan = subparsers.add_parser("scan", help="List unprocessed files")
@@ -151,6 +180,11 @@ def main(argv: list[str] | None = None) -> None:
     p_parse = subparsers.add_parser("parse", help="Test title parsing")
     p_parse.add_argument("title", help="YouTube title to parse")
     p_parse.add_argument("--channel", help="Channel name for context")
+
+    # playlist
+    p_playlist = subparsers.add_parser("playlist", help="Generate m3u8 playlists")
+    p_playlist.add_argument("--artist", help="Generate playlist for specific artist")
+    p_playlist.add_argument("--category", help="Generate playlist for specific category")
 
     # download
     p_download = subparsers.add_parser("download", help="Download from YouTube")
@@ -171,6 +205,7 @@ def main(argv: list[str] | None = None) -> None:
         "process": cmd_process,
         "scan": cmd_scan,
         "parse": cmd_parse,
+        "playlist": cmd_playlist,
         "download": cmd_download,
         "update-ua": cmd_update_ua,
     }

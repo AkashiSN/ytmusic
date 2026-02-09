@@ -169,6 +169,7 @@ def run_pipeline(
     channel: str | None = None,
     dry_run: bool = False,
     interactive: bool = False,
+    regenerate_playlists: bool = True,
 ) -> list[ProcessingResult]:
     """Run the full pipeline on all discovered files.
 
@@ -250,6 +251,13 @@ def run_pipeline(
         if result.errors:
             for err in result.errors:
                 logger.error("  ERROR: %s", err)
+
+    if regenerate_playlists and not dry_run and results:
+        from .playlist import generate_playlists_for_results
+
+        generated = generate_playlists_for_results(results, config)
+        for p in generated:
+            logger.info("Regenerated playlist: %s", p.name)
 
     return results
 

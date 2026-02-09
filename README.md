@@ -65,6 +65,29 @@ ytmusic process --channel KAF
 ytmusic process --channel KAF -i
 ```
 
+### プレイリスト生成
+
+```bash
+# 全プレイリスト再生成
+ytmusic playlist
+
+# 特定アーティストのみ
+ytmusic playlist --artist 花譜
+
+# 特定カテゴリのみ
+ytmusic playlist --category 神椿Studio
+```
+
+### プレイリスト連携（process コマンド）
+
+```bash
+# 処理後に影響プレイリストを自動再生成（デフォルト）
+ytmusic process
+
+# プレイリスト再生成をスキップ
+ytmusic process --no-playlist
+```
+
 ### パーステスト
 
 ```bash
@@ -87,10 +110,11 @@ ytmusic parse "【歌ってみた】1ピース by 花譜" --channel KAF
   ├─ R128       ffmpeg loudnorm → R128_TRACK_GAIN (Q7.8形式)
   ├─ TAG        mutagen: TITLE, ARTIST, ALBUM, ALBUMARTIST, TRACKNUMBER,
   │             R128_TRACK_GAIN, METADATA_BLOCK_PICTURE
-  └─ ORGANIZE   ファイルを最終パスへ配置:
-                 Opus(タグ付) → /Volumes/musics/Opus/<Cat>/<Artist>/<Album>/
-                 Opus(コピー) → /Volumes/musics/Original/<Cat>/<Artist>/<Album>/Opus/
-                 webm         → /Volumes/musics/Original/<Cat>/<Artist>/<Album>/Original/
+  ├─ ORGANIZE   ファイルを最終パスへ配置:
+  │              Opus(タグ付) → /Volumes/musics/Opus/<Cat>/<Artist>/<Album>/
+  │              Opus(コピー) → /Volumes/musics/Original/<Cat>/<Artist>/<Album>/Opus/
+  │              webm         → /Volumes/musics/Original/<Cat>/<Artist>/<Album>/Original/
+  └─ PLAYLIST   影響するアーティスト/カテゴリのm3u8プレイリストを自動再生成
 ```
 
 ## 設定ファイル
@@ -132,6 +156,16 @@ format = "{artist}のお歌"
 [channels.KAF]
 artist = "花譜"
 category = "神椿Studio"
+
+# プレイリスト生成設定（省略可）
+[playlists]
+output_dir = "Playlists/m3u8"
+
+[playlists.artists]
+"花譜" = "神椿Studio/花譜"           # プレイリスト名 = Opus/からの相対パス
+
+[playlists.categories]
+"神椿Studio" = "神椿Studio"          # カテゴリ名 = Opus/からの相対パス
 ```
 
 ## 対応チャンネル
@@ -236,8 +270,14 @@ category = "神椿Studio"
 │   ├── 深脊界Studio/
 │   │   ├── 明透/明透のお歌/
 │   │   └── VALIS/VALISのお歌/
-│   └── Vtuber/
-│       └── HIMEHINA/HIMEHINAのお歌/
+│   ├── Vtuber/
+│   │   └── HIMEHINA/HIMEHINAのお歌/
+│   └── Playlists/
+│       └── m3u8/                   # m3u8プレイリスト
+│           ├── 花譜.m3u8           # アーティスト単位
+│           ├── 理芽.m3u8
+│           ├── 00_神椿Studio.m3u8  # カテゴリ単位（00_プレフィクス）
+│           └── ...
 │
 └── Original/                       # オリジナルファイル保存
     └── <Category>/<Artist>/<Album>/
@@ -257,7 +297,7 @@ uv run --with pytest pytest tests/test_parser.py -v
 
 ```
 ├── pyproject.toml
-├── config.toml.example          # 設定ファイルのサンプル
+├── config.toml.example      # 設定ファイルのサンプル
 ├── src/ytmusic/
 │   ├── __init__.py
 │   ├── __main__.py          # python -m ytmusic
@@ -269,9 +309,9 @@ uv run --with pytest pytest tests/test_parser.py -v
 │   ├── audio.py             # ffmpeg/AtomicParsley ラッパー
 │   ├── tagger.py            # mutagen Opusタグ・アートワーク
 │   ├── organizer.py         # トラック番号採番・ファイル配置
+│   ├── playlist.py          # m3u8プレイリスト生成
 │   └── pipeline.py          # パイプラインオーケストレーション
-├── tests/
-│   └── test_parser.py       # パーサーテスト (83ケース)
-├── FileOps-Presets.txt       # foo_fileops プリセット (参照用)
-└── FileOps-Presets-Rename.txt
+└── tests/
+    ├── test_parser.py       # パーサーテスト (83ケース)
+    └── test_playlist.py     # プレイリストテスト
 ```

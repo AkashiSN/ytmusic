@@ -58,12 +58,27 @@ class Config:
     referer: str
     album_format: str
     channels: dict[str, ChannelConfig] = field(default_factory=dict)
+    playlist_output_dir: str = "Playlists/m3u8"
+    playlist_artists: dict[str, str] = field(default_factory=dict)
+    playlist_categories: dict[str, str] = field(default_factory=dict)
 
     def get_channel(self, channel_dir: str) -> ChannelConfig | None:
         return self.channels.get(channel_dir)
 
     def album_name(self, artist: str) -> str:
         return self.album_format.format(artist=artist)
+
+    @property
+    def opus_root(self) -> Path:
+        return self.library_dir / "Opus"
+
+    @property
+    def playlists_base(self) -> Path:
+        return self.opus_root / "Playlists"
+
+    @property
+    def playlist_output_path(self) -> Path:
+        return self.opus_root / self.playlist_output_dir
 
     @classmethod
     def load(cls, path: Path | None = None) -> Config:
@@ -84,6 +99,11 @@ class Config:
                 category=ch_data["category"],
             )
 
+        playlists = data.get("playlists", {})
+        playlist_output_dir = playlists.get("output_dir", "Playlists/m3u8")
+        playlist_artists: dict[str, str] = dict(playlists.get("artists", {}))
+        playlist_categories: dict[str, str] = dict(playlists.get("categories", {}))
+
         return cls(
             config_path=path,
             youtube_dir=Path(paths.get("youtube_dir", "~/Music/Youtube")).expanduser(),
@@ -95,4 +115,7 @@ class Config:
             referer=download.get("referer", "https://www.youtube.com/"),
             album_format=album.get("format", "{artist}のお歌"),
             channels=channels,
+            playlist_output_dir=playlist_output_dir,
+            playlist_artists=playlist_artists,
+            playlist_categories=playlist_categories,
         )
