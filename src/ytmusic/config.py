@@ -100,9 +100,6 @@ class Config:
             )
 
         playlists = data.get("playlists", {})
-        playlist_output_dir = playlists.get("output_dir", "Playlists/m3u8")
-        playlist_artists: dict[str, str] = dict(playlists.get("artists", {}))
-        playlist_categories: dict[str, str] = dict(playlists.get("categories", {}))
 
         return cls(
             config_path=path,
@@ -115,7 +112,7 @@ class Config:
             referer=download.get("referer", "https://www.youtube.com/"),
             album_format=album.get("format", "{artist}のお歌"),
             channels=channels,
-            playlist_output_dir=playlist_output_dir,
-            playlist_artists=playlist_artists,
-            playlist_categories=playlist_categories,
+            playlist_output_dir=playlists.get("output_dir", "Playlists/m3u8"),
+            playlist_artists=dict(playlists.get("artists", {})),
+            playlist_categories=dict(playlists.get("categories", {})),
         )

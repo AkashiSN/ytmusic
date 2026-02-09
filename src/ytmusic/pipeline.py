@@ -12,6 +12,7 @@ from .config import Config
 from .models import ProcessingResult, SourceFiles, TrackMetadata
 from .organizer import compute_paths, get_next_track_number, place_files
 from .parser import diagnose_parse_failure, parse_title
+from .playlist import generate_playlists_for_results
 from .tagger import tag_opus
 
 logger = logging.getLogger(__name__)
@@ -253,8 +254,6 @@ def run_pipeline(
                 logger.error("  ERROR: %s", err)
 
     if regenerate_playlists and not dry_run and results:
-        from .playlist import generate_playlists_for_results
-
         generated = generate_playlists_for_results(results, config)
         for p in generated:
             logger.info("Regenerated playlist: %s", p.name)
