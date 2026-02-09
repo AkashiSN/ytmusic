@@ -79,12 +79,25 @@ def parse_title(raw_title: str, channel_artist: str) -> ParseResult | None:
         if result is not None:
             # Apply with_name to title and artists
             if with_name:
-                result.title = f"{result.title} with {with_name}"
+                # Insert 'with <name>' before trailing suffix like (Cover), (Rearranged Ver.)
+                suffix_m = re.search(
+                    r"\s*(\((?:Cover|Rearranged Ver\.)\))$", result.title,
+                )
+                if suffix_m:
+                    base = result.title[: suffix_m.start()]
+                    suffix = suffix_m.group(1)
+                    result.title = f"{base} with {with_name} {suffix}"
+                else:
+                    result.title = f"{result.title} with {with_name}"
                 if with_name not in result.artists:
                     result.artists.append(with_name)
-            # Apply live_event
+            # Apply live_event: append 【<event> Live ver.】 to title
             if live_event:
-                result.live_event = live_event
+                # Strip trailing date (e.g. "2025.7.21")
+                event = re.sub(r"\s+\d{4}\.\d{1,2}\.\d{1,2}\s*$", "", live_event).strip()
+                result.live_event = event
+                result.is_live = True
+                result.title = f"{result.title} 【{event} Live ver.】"
             return result
 
     return None
@@ -296,13 +309,29 @@ def _o1(title: str, channel_artist: str) -> ParseResult | None:
 def _o5(title: str, channel_artist: str) -> ParseResult | None:
     """O5: No.<番号>　<歌手> -<英名>- 「<曲>」【...】"""
     m = re.match(
-        r"No\.(\d+)\s+(.+?)\s+-\w+-\s+「(.+?)」\s*【.+?】\s*$",
+        r"No\.(\d+)\s+(.+?)\s+-\w+-\s+「(.+?)」\s*【(.+?)】\s*$",
         title,
     )
     if not m:
         return None
     song = _strip(m.group(3))
+    bracket = m.group(4)
     artists = [channel_artist]
+
+    # Detect live version: 【LIVE Video from ... 「<event>」】
+    live_m = re.search(r"LIVE Video from .+?「(.+?)」", bracket)
+    if live_m:
+        event = _strip(live_m.group(1))
+        # Insert space before Roman numeral characters (Ⅰ-Ⅻ)
+        event = re.sub(r"(?<=\S)([\u2160-\u216b])", r" \1", event)
+        return ParseResult(
+            title=f"{song} 【{event} Live ver.】",
+            artists=artists,
+            is_live=True,
+            live_event=event,
+            pattern_id="O5",
+        )
+
     return ParseResult(
         title=song,
         artists=artists,

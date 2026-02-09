@@ -41,9 +41,6 @@ ytmusic download https://www.youtube.com/watch?v=XXXXX
 
 # 複数URL一括（1行1URL）
 ytmusic download --urls urls.txt
-
-# Chrome UAを自動検出して config.toml に書き込み
-ytmusic update-ua
 ```
 
 ### 処理
@@ -55,8 +52,14 @@ ytmusic scan
 # プレビュー（実際のファイル操作なし）
 ytmusic process --dry-run
 
-# 全自動処理
+# 全自動処理（デフォルト: ソースファイル保持）
 ytmusic process
+
+# 処理後にソースファイルを削除（Original/ にバックアップあり）
+ytmusic process --move-sources
+
+# 処理後にソースファイルを削除（バックアップなし）
+ytmusic process --clean-sources
 
 # 特定チャンネルのみ
 ytmusic process --channel KAF
@@ -112,8 +115,7 @@ ytmusic parse "【歌ってみた】1ピース by 花譜" --channel KAF
   │             R128_TRACK_GAIN, METADATA_BLOCK_PICTURE
   ├─ ORGANIZE   ファイルを最終パスへ配置:
   │              Opus(タグ付) → /Volumes/musics/Opus/<Cat>/<Artist>/<Album>/
-  │              Opus(コピー) → /Volumes/musics/Original/<Cat>/<Artist>/<Album>/Opus/
-  │              webm         → /Volumes/musics/Original/<Cat>/<Artist>/<Album>/Original/
+  │              webm(コピー) → /Volumes/musics/Original/<Cat>/<Artist>/<Album>/
   └─ PLAYLIST   影響するアーティスト/カテゴリのm3u8プレイリストを自動再生成
 ```
 
@@ -279,10 +281,9 @@ output_dir = "Playlists/m3u8"
 │           ├── 00_神椿Studio.m3u8  # カテゴリ単位（00_プレフィクス）
 │           └── ...
 │
-└── Original/                       # オリジナルファイル保存
+└── Original/                       # webm バックアップ
     └── <Category>/<Artist>/<Album>/
-        ├── Original/               # webm (ダウンロード元)
-        └── Opus/                   # Opus (タグ付きコピー)
+        └── <track>.webm            # webm (ダウンロード元コピー)
 ```
 
 ## テスト
@@ -304,7 +305,7 @@ uv run --with pytest pytest tests/test_parser.py -v
 │   ├── cli.py               # argparse CLI
 │   ├── config.py            # TOML設定読み込み
 │   ├── models.py            # データクラス・ファイル名正規化
-│   ├── downloader.py        # yt-dlp ラッパー・UA自動取得
+│   ├── downloader.py        # yt-dlp ラッパー
 │   ├── parser.py            # タイトルパーサー (17パターン)
 │   ├── audio.py             # ffmpeg/AtomicParsley ラッパー
 │   ├── tagger.py            # mutagen Opusタグ・アートワーク

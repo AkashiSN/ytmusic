@@ -40,8 +40,7 @@ def compute_paths(metadata: TrackMetadata, config: Config) -> dict[str, Path]:
 
     Returns dict with keys:
         - opus_player: /Volumes/musics/Opus/<Cat>/<Artist>/<Album>/<file>.opus
-        - opus_original: /Volumes/musics/Original/<Cat>/<Artist>/<Album>/Opus/<file>.opus
-        - webm_original: /Volumes/musics/Original/<Cat>/<Artist>/<Album>/Original/<file>.webm
+        - webm_original: /Volumes/musics/Original/<Cat>/<Artist>/<Album>/<file>.webm
         - album_dir: The album directory (for track number scanning)
     """
     lib = config.library_dir
@@ -53,8 +52,7 @@ def compute_paths(metadata: TrackMetadata, config: Config) -> dict[str, Path]:
 
     return {
         "opus_player": lib / "Opus" / cat / artist_dir / album_dir / opus_fn,
-        "opus_original": lib / "Original" / cat / artist_dir / album_dir / "Opus" / opus_fn,
-        "webm_original": lib / "Original" / cat / artist_dir / album_dir / "Original" / webm_fn,
+        "webm_original": lib / "Original" / cat / artist_dir / album_dir / webm_fn,
         "album_dir": lib / "Opus" / cat / artist_dir / album_dir,
     }
 
@@ -65,6 +63,8 @@ def place_files(
     metadata: TrackMetadata,
     config: Config,
     dry_run: bool = False,
+    source_handling: str = "keep",
+    m4a_path: Path | None = None,
 ) -> dict[str, Path]:
     """Move/copy files to their final library locations.
 
@@ -74,6 +74,8 @@ def place_files(
         metadata: Track metadata (with track_number set).
         config: Configuration.
         dry_run: If True, only log what would happen.
+        source_handling: "keep" (default), "move", or "clean".
+        m4a_path: Path to m4a source file (for cleanup).
 
     Returns:
         Dict of destination paths.
@@ -82,24 +84,32 @@ def place_files(
 
     if dry_run:
         logger.info("  [DRY-RUN] Opus  → %s", paths["opus_player"])
-        logger.info("  [DRY-RUN] Copy  → %s", paths["opus_original"])
-        logger.info("  [DRY-RUN] Orig  → %s", paths["webm_original"])
+        if source_handling != "clean":
+            logger.info("  [DRY-RUN] Orig  → %s", paths["webm_original"])
+        if source_handling in ("move", "clean"):
+            logger.info("  [DRY-RUN] Delete sources: %s", webm_path.parent)
         return paths
 
     # Create directories
-    for key in ("opus_player", "opus_original", "webm_original"):
-        paths[key].parent.mkdir(parents=True, exist_ok=True)
+    paths["opus_player"].parent.mkdir(parents=True, exist_ok=True)
 
     # Move tagged opus to player directory
     shutil.move(str(opus_path), str(paths["opus_player"]))
     logger.info("Moved Opus → %s", paths["opus_player"])
 
-    # Copy to Original/Opus
-    shutil.copy2(str(paths["opus_player"]), str(paths["opus_original"]))
-    logger.info("Copied Opus → %s", paths["opus_original"])
+    # Copy webm to Original/ (unless clean mode)
+    if source_handling != "clean":
+        paths["webm_original"].parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(webm_path), str(paths["webm_original"]))
+        logger.info("Copied webm → %s", paths["webm_original"])
+    else:
+        paths["webm_original"] = None  # type: ignore[assignment]
 
-    # Move webm to Original/Original
-    shutil.move(str(webm_path), str(paths["webm_original"]))
-    logger.info("Moved webm → %s", paths["webm_original"])
+    # Delete source files if requested
+    if source_handling in ("move", "clean"):
+        for src in (webm_path, m4a_path, metadata.artwork_path):
+            if src and src.exists():
+                src.unlink()
+                logger.info("Deleted source: %s", src)
 
     return paths

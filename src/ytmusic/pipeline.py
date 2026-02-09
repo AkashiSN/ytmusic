@@ -101,6 +101,7 @@ def process_track(
     metadata: TrackMetadata,
     config: Config,
     dry_run: bool = False,
+    source_handling: str = "keep",
 ) -> ProcessingResult:
     """Process a single track through the full pipeline.
 
@@ -117,8 +118,7 @@ def process_track(
         # Recompute paths with track number set
         paths = compute_paths(metadata, config)
         result.opus_player_path = paths["opus_player"]
-        result.opus_original_path = paths["opus_original"]
-        result.webm_original_path = paths["webm_original"]
+        result.webm_original_path = paths["webm_original"] if source_handling != "clean" else None
         return result
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -155,10 +155,13 @@ def process_track(
 
         # ORGANIZE: place files
         try:
-            dest = place_files(tmp_opus, source.webm, metadata, config)
+            dest = place_files(
+                tmp_opus, source.webm, metadata, config,
+                source_handling=source_handling,
+                m4a_path=source.m4a,
+            )
             result.opus_player_path = dest["opus_player"]
-            result.opus_original_path = dest["opus_original"]
-            result.webm_original_path = dest["webm_original"]
+            result.webm_original_path = dest.get("webm_original")
         except Exception as e:
             result.errors.append(f"Organize failed: {e}")
 
@@ -171,6 +174,7 @@ def run_pipeline(
     dry_run: bool = False,
     interactive: bool = False,
     regenerate_playlists: bool = True,
+    source_handling: str = "keep",
 ) -> list[ProcessingResult]:
     """Run the full pipeline on all discovered files.
 
@@ -241,13 +245,12 @@ def run_pipeline(
                 source=source,
                 metadata=metadata,
                 opus_player_path=final_paths["opus_player"],
-                opus_original_path=final_paths["opus_original"],
-                webm_original_path=final_paths["webm_original"],
+                webm_original_path=final_paths["webm_original"] if source_handling != "clean" else None,
             )
             results.append(result)
             continue
 
-        result = process_track(source, metadata, config)
+        result = process_track(source, metadata, config, source_handling=source_handling)
         results.append(result)
         if result.errors:
             for err in result.errors:

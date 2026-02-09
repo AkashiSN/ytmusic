@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from .config import Config, find_config
-from .downloader import download, get_chrome_user_agent, update_config_ua
+from .downloader import download
 from .parser import diagnose_parse_failure, parse_title
 from .pipeline import discover_files, build_metadata, run_pipeline
 from .playlist import generate_all_playlists, generate_artist_playlist, generate_category_playlist
@@ -24,12 +24,21 @@ def _setup_logging(verbose: bool) -> None:
 
 def cmd_process(args: argparse.Namespace) -> None:
     config = Config.load(find_config(args.config))
+
+    if args.clean_sources:
+        source_handling = "clean"
+    elif args.move_sources:
+        source_handling = "move"
+    else:
+        source_handling = "keep"
+
     results = run_pipeline(
         config,
         channel=args.channel,
         dry_run=args.dry_run,
         interactive=args.interactive,
         regenerate_playlists=not args.no_playlist,
+        source_handling=source_handling,
     )
     errors = [r for r in results if r.errors]
     if errors:
@@ -145,16 +154,6 @@ def cmd_download(args: argparse.Namespace) -> None:
     download(urls, config)
 
 
-def cmd_update_ua(args: argparse.Namespace) -> None:
-    config_path = find_config(args.config)
-    ua = update_config_ua(config_path)
-    if ua:
-        print(f"Updated user_agent in {config_path}: {ua}")
-    else:
-        print("Failed to detect Chrome user agent", file=sys.stderr)
-        sys.exit(1)
-
-
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="ytmusic",
@@ -171,6 +170,15 @@ def main(argv: list[str] | None = None) -> None:
     p_process.add_argument("--channel", help="Process specific channel only")
     p_process.add_argument("-i", "--interactive", action="store_true", help="Confirm each track")
     p_process.add_argument("--no-playlist", action="store_true", help="Skip playlist regeneration")
+    source_group = p_process.add_mutually_exclusive_group()
+    source_group.add_argument(
+        "--move-sources", action="store_true",
+        help="Delete source files after processing (Original/ backup kept)",
+    )
+    source_group.add_argument(
+        "--clean-sources", action="store_true",
+        help="Delete source files after processing (no backup)",
+    )
 
     # scan
     p_scan = subparsers.add_parser("scan", help="List unprocessed files")
@@ -191,9 +199,6 @@ def main(argv: list[str] | None = None) -> None:
     p_download.add_argument("url", nargs="?", help="YouTube URL")
     p_download.add_argument("--urls", help="File with URLs (one per line)")
 
-    # update-ua
-    subparsers.add_parser("update-ua", help="Update Chrome user agent in config")
-
     args = parser.parse_args(argv)
     _setup_logging(args.verbose)
 
@@ -207,6 +212,5 @@ def main(argv: list[str] | None = None) -> None:
         "parse": cmd_parse,
         "playlist": cmd_playlist,
         "download": cmd_download,
-        "update-ua": cmd_update_ua,
     }
     handlers[args.command](args)

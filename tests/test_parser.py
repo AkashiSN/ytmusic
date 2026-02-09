@@ -55,7 +55,7 @@ CASES = [
     (
         "【歌ってみた】「チルドレンレコード ⧸ じん」 covered by 春猿火 with 梓川 (from CREAM PUFF LIVE 4 2025.7.21)",
         "春猿火",
-        "チルドレンレコード (Cover) with 梓川",
+        "チルドレンレコード with 梓川 (Cover) 【CREAM PUFF LIVE 4 Live ver.】",
         ["春猿火", "梓川"],
         "C1",
     ),
@@ -63,7 +63,7 @@ CASES = [
     (
         "【歌ってみた】「カワルミライ ⧸ Choucho」covered by 春猿火 (from CREAM PUFF LIVE 4 2025.7.21)",
         "春猿火",
-        "カワルミライ (Cover)",
+        "カワルミライ (Cover) 【CREAM PUFF LIVE 4 Live ver.】",
         ["春猿火"],
         "C1",
     ),
@@ -117,14 +117,14 @@ CASES = [
     (
         "No.039　幸祜 -KOKO- 「ANTINOMY」【LIVE Video from 3rd ONE-MAN LIVE「PLAYERⅢ」】",
         "KOKO",
-        "ANTINOMY",
+        "ANTINOMY 【PLAYER Ⅲ Live ver.】",
         ["KOKO"],
         "O5",
     ),
     (
         "No.040　幸祜 -KOKO- 「ミラージュコード」【LIVE Video from 3rd ONE-MAN LIVE「PLAYERⅢ」】",
         "KOKO",
-        "ミラージュコード",
+        "ミラージュコード 【PLAYER Ⅲ Live ver.】",
         ["KOKO"],
         "O5",
     ),
