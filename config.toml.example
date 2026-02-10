@@ -53,7 +53,7 @@ remote_music_dir = "Music"
 
 # Playlist generation settings
 [playlists]
-output_dir = "Playlists/m3u8"
+output_dir = "Playlists"
 
 [playlists.artists]
 "花譜" = "神椿Studio/花譜"

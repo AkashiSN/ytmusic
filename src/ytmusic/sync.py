@@ -6,9 +6,11 @@ import logging
 import re
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 
 from .config import Config
+from .models import sanitize_albumartist_for_filename
 
 logger = logging.getLogger(__name__)
 
@@ -113,10 +115,46 @@ def collect_remote_files(
     for line in result.stdout.splitlines():
         line = line.strip()
         if line.startswith(prefix):
-            rel = line[len(prefix):]
+            rel = unicodedata.normalize("NFC", line[len(prefix):])
             if _is_media_file(rel):
                 paths.add(rel)
     return paths
+
+
+def collect_remote_playlist_sizes(
+    serial: str, remote_dir: str, adb: str = "adb",
+) -> dict[str, int]:
+    """Collect remote .m3u8 file sizes as {relative_path: size_bytes}.
+
+    Uses ``wc -c`` (POSIX) for broad Android device compatibility.
+    Returns an empty dict on failure (graceful fallback).
+    """
+    result = subprocess.run(
+        [adb, "-s", serial, "shell",
+         "find", remote_dir, "-name", "*.m3u8",
+         "-exec", "wc", "-c", "{}", "+"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return {}
+    prefix = remote_dir.rstrip("/") + "/"
+    sizes: dict[str, int] = {}
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(" ", 1)
+        if len(parts) != 2:
+            continue
+        try:
+            size = int(parts[0])
+        except ValueError:
+            continue
+        path = parts[1]
+        if path.startswith(prefix):
+            rel = unicodedata.normalize("NFC", path[len(prefix):])
+            sizes[rel] = size
+    return sizes
 
 
 def ensure_remote_dir(serial: str, remote_dir: str, adb: str = "adb") -> None:
@@ -139,6 +177,28 @@ def push_file(
         raise RuntimeError(f"adb push failed: {result.stderr.strip()}")
 
 
+def _collect_sync_targets(config: Config) -> list[str]:
+    """Collect local media files limited to configured channels and playlists."""
+    opus_root = config.opus_root
+    files: set[str] = set()
+
+    for ch in config.channels.values():
+        artist_dir = sanitize_albumartist_for_filename(ch.artist)
+        target = opus_root / ch.category / artist_dir
+        if target.is_dir():
+            for f in target.rglob("*"):
+                if f.is_file() and _is_media_file(f.name):
+                    files.add(unicodedata.normalize("NFC", str(f.relative_to(opus_root))))
+
+    playlist_dir = opus_root / config.playlist_output_dir
+    if playlist_dir.is_dir():
+        for f in playlist_dir.rglob("*"):
+            if f.is_file() and _is_media_file(f.name):
+                files.add(unicodedata.normalize("NFC", str(f.relative_to(opus_root))))
+
+    return sorted(files)
+
+
 def sync_library(
     config: Config,
     device_serial: str | None = None,
@@ -159,11 +219,7 @@ def sync_library(
     remote_base = f"{sd_card}/{config.sync_remote_music_dir}"
 
     # Collect local media files (relative to opus_root)
-    local_files: list[str] = sorted(
-        str(f.relative_to(opus_root))
-        for f in opus_root.rglob("*")
-        if f.is_file() and _is_media_file(f.name)
-    )
+    local_files = _collect_sync_targets(config)
 
     if not local_files:
         print("No media files found in library")
@@ -172,19 +228,37 @@ def sync_library(
     # Collect remote files for diff
     print(f"Scanning remote: {remote_base}")
     remote_files = collect_remote_files(serial, remote_base, config.adb)
+    remote_playlist_sizes = collect_remote_playlist_sizes(
+        serial, remote_base, config.adb,
+    )
 
     synced = 0
     skipped = 0
     for rel_path in local_files:
-        if rel_path in remote_files:
+        local_path = opus_root / rel_path
+        remote_path = f"{remote_base}/{rel_path}"
+        is_playlist = rel_path.endswith(".m3u8")
+
+        # Determine if file needs syncing
+        if rel_path not in remote_files:
+            label = "NEW"
+        elif is_playlist:
+            local_size = local_path.stat().st_size
+            if rel_path in remote_playlist_sizes:
+                remote_size = remote_playlist_sizes[rel_path]
+                if local_size == remote_size:
+                    skipped += 1
+                    continue
+                reason = f"size {remote_size} -> {local_size}"
+            else:
+                reason = "remote size unknown"
+            label = f"UPDATE: {reason}"
+        else:
             skipped += 1
             continue
 
-        local_path = opus_root / rel_path
-        remote_path = f"{remote_base}/{rel_path}"
-
         if dry_run:
-            print(f"  [SYNC] {rel_path}")
+            print(f"  [{label}] {rel_path}")
             synced += 1
             continue
 
@@ -193,7 +267,7 @@ def sync_library(
         ensure_remote_dir(serial, remote_parent, config.adb)
 
         logger.info("Pushing: %s", rel_path)
-        print(f"  [PUSH] {rel_path}")
+        print(f"  [{label}] {rel_path}")
         push_file(local_path, serial, remote_path, config.adb)
         synced += 1
 

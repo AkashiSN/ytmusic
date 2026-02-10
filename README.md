@@ -87,7 +87,7 @@ ytmusic playlist --category 神椿Studio
 macOSではAndroidのMTPが認識されないため、ADB経由でライブラリのメディアファイルをAndroidの外部SDカードに転送する。
 
 ```bash
-# ライブラリ全体を差分同期（リモートに無いファイルのみ転送）
+# config記載チャンネル＋プレイリストを差分同期（新規ファイルおよびサイズが変更されたプレイリストを転送）
 ytmusic sync
 
 # プレビュー
@@ -105,12 +105,15 @@ ytmusic sync --device SERIAL --sd-card /storage/XXXX-XXXX
 リモート:  /storage/XXXX-XXXX/Music/<Category>/<Artist>/<Album>/<file>
 ```
 
-**対象ファイル:** `.opus`, `.flac`, `.mp3`, `.m4a`, `.ogg`, `.wav`, `.aac`, `.wma`, `.m3u8`
+**同期対象:** configファイルに設定されたチャンネルのディレクトリ（`<Category>/<Artist>/`）およびプレイリストディレクトリのみ。ライブラリ全体ではなく、設定済みチャンネルに限定して同期する。
+
+**対象拡張子:** `.opus`, `.flac`, `.mp3`, `.m4a`, `.ogg`, `.wav`, `.aac`, `.wma`, `.m3u8`
 
 ### プレイリスト・同期連携（process コマンド）
 
 ```bash
 # 処理後にプレイリスト再生成＋ADB同期（デフォルト）
+# 再生成されたプレイリストも同期対象に含まれる
 ytmusic process
 
 # プレイリスト再生成をスキップ

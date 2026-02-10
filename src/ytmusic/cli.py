@@ -11,7 +11,7 @@ from .config import Config, find_config
 from .downloader import download
 from .parser import diagnose_parse_failure, parse_title
 from .pipeline import discover_files, build_metadata, run_pipeline
-from .playlist import generate_all_playlists, generate_artist_playlist, generate_category_playlist
+from .playlist import affected_playlists_for_results, generate_all_playlists, generate_artist_playlist, generate_category_playlist
 from .sync import sync_files, sync_library, list_adb_devices
 
 
@@ -52,17 +52,27 @@ def cmd_process(args: argparse.Namespace) -> None:
 
     # Auto-sync to Android device
     if not args.no_sync:
-        opus_files = [r.opus_player_path for r in results if r.opus_player_path]
-        if opus_files:
+        sync_targets = [r.opus_player_path for r in results if r.opus_player_path]
+
+        # Include affected playlists if playlist regeneration was enabled
+        if not args.no_playlist:
+            playlist_names = affected_playlists_for_results(results, config)
+            playlist_dir = config.opus_root / config.playlist_output_dir
+            for name in playlist_names:
+                p = playlist_dir / name
+                if p.exists():
+                    sync_targets.append(p)
+
+        if sync_targets:
             if args.dry_run:
-                print(f"\n[DRY-RUN] Files to sync ({len(opus_files)}):")
-                for f in opus_files:
+                print(f"\n[DRY-RUN] Files to sync ({len(sync_targets)}):")
+                for f in sync_targets:
                     print(f"  [SYNC] {f.relative_to(config.opus_root)}")
             else:
                 try:
                     list_adb_devices(config.adb)
-                    print(f"\nSyncing {len(opus_files)} file(s) to device...")
-                    synced = sync_files(opus_files, config)
+                    print(f"\nSyncing {len(sync_targets)} file(s) to device...")
+                    synced = sync_files(sync_targets, config)
                     print(f"Synced {synced} file(s)")
                 except Exception as e:
                     logging.warning("Auto-sync skipped (ADB not available): %s", e)
