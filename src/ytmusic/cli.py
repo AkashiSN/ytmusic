@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .config import Config, find_config
 from .downloader import download
+from .models import ProcessingResult
 from .parser import diagnose_parse_failure, parse_title
 from .pipeline import discover_files, build_metadata, run_pipeline
 from .playlist import affected_playlists_for_results, generate_all_playlists, generate_artist_playlist, generate_category_playlist
@@ -21,6 +22,26 @@ def _setup_logging(verbose: bool) -> None:
         level=level,
         format="%(levelname)s: %(message)s",
     )
+
+
+def _preview_sync_targets(
+    results: list[ProcessingResult],
+    config: Config,
+    *,
+    skip_playlists: bool = False,
+) -> None:
+    """Print dry-run preview of files that would be synced."""
+    sync_targets: list[Path] = [
+        r.opus_player_path for r in results if r.opus_player_path
+    ]
+    if not skip_playlists:
+        playlist_names = affected_playlists_for_results(results, config)
+        sync_targets.extend(config.playlist_output_path / name for name in playlist_names)
+    if not sync_targets:
+        return
+    print(f"\n[DRY-RUN] Files to sync ({len(sync_targets)}):")
+    for f in sync_targets:
+        print(f"  [SYNC] {f.relative_to(config.opus_root)}")
 
 
 def cmd_process(args: argparse.Namespace) -> None:
@@ -53,15 +74,7 @@ def cmd_process(args: argparse.Namespace) -> None:
     # Auto-sync to Android device
     if not args.no_sync:
         if args.dry_run:
-            sync_targets = [r.opus_player_path for r in results if r.opus_player_path]
-            if not args.no_playlist:
-                playlist_names = affected_playlists_for_results(results, config)
-                for name in playlist_names:
-                    sync_targets.append(config.playlist_output_path / name)
-            if sync_targets:
-                print(f"\n[DRY-RUN] Files to sync ({len(sync_targets)}):")
-                for f in sync_targets:
-                    print(f"  [SYNC] {f.relative_to(config.opus_root)}")
+            _preview_sync_targets(results, config, skip_playlists=args.no_playlist)
         else:
             try:
                 synced, skipped = sync_library(config)

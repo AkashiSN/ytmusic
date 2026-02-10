@@ -96,6 +96,77 @@ def _resolve_sd_card(sd_card: str | None, serial: str, adb: str) -> str:
     return interactive_select("SD cards", cards)
 
 
+def _parse_stat_line(line: str, prefix: str) -> tuple[str, int] | None:
+    """Parse a single 'stat -c %s %n' output line.
+
+    Returns (relative_path, size) if the line is valid and under prefix,
+    or None otherwise.
+    """
+    line = line.strip()
+    if not line:
+        return None
+    parts = line.split(" ", 1)
+    if len(parts) != 2:
+        return None
+    try:
+        size = int(parts[0])
+    except ValueError:
+        return None
+    path = parts[1]
+    if not path.startswith(prefix):
+        return None
+    rel = path[len(prefix):]
+    if not _is_media_file(rel):
+        return None
+    return rel, size
+
+
+def _collect_with_stat(
+    serial: str, remote_dir: str, prefix: str, adb: str,
+) -> dict[str, int] | None:
+    """Try to collect remote files with sizes via stat.
+
+    Returns file dict on success, or None if stat is unavailable.
+    """
+    result = subprocess.run(
+        [adb, "-s", serial, "shell",
+         f"find {remote_dir} -type f -exec stat -c '%s %n' {{}} +"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    files: dict[str, int] = {}
+    for line in result.stdout.splitlines():
+        parsed = _parse_stat_line(line, prefix)
+        if parsed:
+            rel, size = parsed
+            files[rel] = size
+    return files
+
+
+def _collect_paths_only(
+    serial: str, remote_dir: str, prefix: str, adb: str,
+) -> dict[str, int]:
+    """Collect remote file paths without sizes (fallback).
+
+    Returns dict with all sizes set to -1 (unknown).
+    """
+    result = subprocess.run(
+        [adb, "-s", serial, "shell", "find", remote_dir, "-type", "f"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return {}
+    files: dict[str, int] = {}
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if line.startswith(prefix):
+            rel = line[len(prefix):]
+            if _is_media_file(rel):
+                files[rel] = -1
+    return files
+
+
 def collect_remote_files(
     serial: str, remote_dir: str, adb: str = "adb",
 ) -> dict[str, int]:
@@ -106,47 +177,10 @@ def collect_remote_files(
     """
     prefix = remote_dir.rstrip("/") + "/"
 
-    # Try stat for size-aware collection
-    result = subprocess.run(
-        [adb, "-s", serial, "shell",
-         f"find {remote_dir} -type f -exec stat -c '%s %n' {{}} +"],
-        capture_output=True, text=True,
-    )
-    if result.returncode == 0 and result.stdout.strip():
-        files: dict[str, int] = {}
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            parts = line.split(" ", 1)
-            if len(parts) != 2:
-                continue
-            try:
-                size = int(parts[0])
-            except ValueError:
-                continue
-            path = parts[1]
-            if path.startswith(prefix):
-                rel = path[len(prefix):]
-                if _is_media_file(rel):
-                    files[rel] = size
-        return files
-
-    # Fallback: paths only (size unknown)
-    result = subprocess.run(
-        [adb, "-s", serial, "shell", "find", remote_dir, "-type", "f"],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        return {}
-    files = {}
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if line.startswith(prefix):
-            rel = line[len(prefix):]
-            if _is_media_file(rel):
-                files[rel] = -1
-    return files
+    stat_result = _collect_with_stat(serial, remote_dir, prefix, adb)
+    if stat_result is not None:
+        return stat_result
+    return _collect_paths_only(serial, remote_dir, prefix, adb)
 
 
 def ensure_remote_dir(serial: str, remote_dir: str, adb: str = "adb") -> None:
@@ -167,6 +201,19 @@ def push_file(
     )
     if result.returncode != 0:
         raise RuntimeError(f"adb push failed: {result.stderr.strip()}")
+
+
+def _sync_action(local_path: Path, remote_size: int | None) -> str | None:
+    """Determine sync action for a file.
+
+    Returns "SYNC" for new files, "UPDATE" for size-mismatched files,
+    or None if the file should be skipped (already up-to-date).
+    """
+    if remote_size is None:
+        return "SYNC"
+    if remote_size == -1 or remote_size == local_path.stat().st_size:
+        return None
+    return "UPDATE"
 
 
 def sync_library(
@@ -207,18 +254,11 @@ def sync_library(
     skipped = 0
     for rel_path in local_files:
         local_path = opus_root / rel_path
-        remote_size = remote_files.get(rel_path)
+        action = _sync_action(local_path, remote_files.get(rel_path))
 
-        if remote_size is not None:
-            local_size = local_path.stat().st_size
-            if remote_size == -1 or remote_size == local_size:
-                skipped += 1
-                continue
-            # Size differs → update
-            action = "UPDATE"
-        else:
-            # New file
-            action = "SYNC"
+        if action is None:
+            skipped += 1
+            continue
 
         remote_path = f"{remote_base}/{rel_path}"
 
@@ -227,7 +267,6 @@ def sync_library(
             synced += 1
             continue
 
-        # Ensure parent directory exists on remote
         remote_parent = remote_path.rsplit("/", 1)[0]
         ensure_remote_dir(serial, remote_parent, config.adb)
 
@@ -237,46 +276,3 @@ def sync_library(
         synced += 1
 
     return synced, skipped
-
-
-def sync_files(
-    files: list[Path],
-    config: Config,
-    device_serial: str | None = None,
-    sd_card_path: str | None = None,
-) -> int:
-    """Sync specific files to Android SD card (for post-process auto-sync).
-
-    Args:
-        files: List of absolute paths to .opus files in the library.
-        config: Configuration.
-        device_serial: Optional device serial to use.
-        sd_card_path: Optional SD card path to use.
-
-    Returns:
-        Number of files synced.
-    """
-    opus_root = config.opus_root
-
-    serial = _resolve_device(device_serial, config.adb)
-    sd_card = _resolve_sd_card(sd_card_path, serial, config.adb)
-    remote_base = f"{sd_card}/{config.sync_remote_music_dir}"
-
-    synced = 0
-    for local_path in files:
-        try:
-            rel_path = str(local_path.relative_to(opus_root))
-        except ValueError:
-            logger.warning("File not under opus_root, skipping: %s", local_path)
-            continue
-
-        remote_path = f"{remote_base}/{rel_path}"
-        remote_parent = remote_path.rsplit("/", 1)[0]
-        ensure_remote_dir(serial, remote_parent, config.adb)
-
-        logger.info("Pushing: %s", rel_path)
-        print(f"  [PUSH] {rel_path}")
-        push_file(local_path, serial, remote_path, config.adb)
-        synced += 1
-
-    return synced
