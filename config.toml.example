@@ -6,6 +6,7 @@ library_dir = "/Volumes/musics"
 ffmpeg = "ffmpeg"
 atomicparsley = "AtomicParsley"
 yt-dlp = "yt-dlp"
+adb = "adb"
 
 [download]
 user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
@@ -45,6 +46,10 @@ category = "深脊界Studio"
 [channels."明透 -ᴀsᴜ-"]
 artist = "明透"
 category = "深脊界Studio"
+
+# ADB sync settings
+[sync]
+remote_music_dir = "Music"
 
 # Playlist generation settings
 [playlists]

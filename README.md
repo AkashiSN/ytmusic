@@ -30,6 +30,7 @@ vi ~/.config/ytmusic/config.toml
 | ffmpeg | Opus抽出、R128ゲイン計算 | `brew install ffmpeg` |
 | AtomicParsley | m4aからアートワーク抽出 | [GitHub Releases](https://github.com/wez/atomicparsley/releases) |
 | yt-dlp | YouTube動画ダウンロード | `brew install yt-dlp` |
+| adb | Android端末へのファイル転送（オプション） | `brew install android-platform-tools` |
 
 ## 使い方
 
@@ -81,15 +82,45 @@ ytmusic playlist --artist 花譜
 ytmusic playlist --category 神椿Studio
 ```
 
-### プレイリスト連携（process コマンド）
+### Android同期
+
+macOSではAndroidのMTPが認識されないため、ADB経由でライブラリのメディアファイルをAndroidの外部SDカードに転送する。
 
 ```bash
-# 処理後に影響プレイリストを自動再生成（デフォルト）
+# ライブラリ全体を差分同期（リモートに無いファイルのみ転送）
+ytmusic sync
+
+# プレビュー
+ytmusic sync --dry-run
+
+# デバイス/SDカードを明示指定
+ytmusic sync --device SERIAL --sd-card /storage/XXXX-XXXX
+```
+
+デバイスやSDカードが複数ある場合は対話的に選択を求められる。
+
+**転送先パス:**
+```
+ローカル:  <library_dir>/Opus/<Category>/<Artist>/<Album>/<file>
+リモート:  /storage/XXXX-XXXX/Music/<Category>/<Artist>/<Album>/<file>
+```
+
+**対象ファイル:** `.opus`, `.flac`, `.mp3`, `.m4a`, `.ogg`, `.wav`, `.aac`, `.wma`, `.m3u8`
+
+### プレイリスト・同期連携（process コマンド）
+
+```bash
+# 処理後にプレイリスト再生成＋ADB同期（デフォルト）
 ytmusic process
 
 # プレイリスト再生成をスキップ
 ytmusic process --no-playlist
+
+# ADB同期をスキップ
+ytmusic process --no-sync
 ```
+
+ADB未接続時は警告のみで`process`自体は成功扱いとなる。
 
 ### パーステスト
 
@@ -120,7 +151,8 @@ ytmusic parse "【歌ってみた】1ピース by 花譜" --channel KAF
   │                デフォルト     → youtube_dir に残す
   │                --move-sources → Original/にコピー後、ソースを削除
   │                --clean-sources→ バックアップなし、ソースを削除
-  └─ PLAYLIST   影響するアーティスト/カテゴリのm3u8プレイリストを自動再生成
+  ├─ PLAYLIST   影響するアーティスト/カテゴリのm3u8プレイリストを自動再生成
+  └─ SYNC       ADB経由でAndroid SDカードへ処理済みファイルを自動転送
 ```
 
 ## 設定ファイル
@@ -150,6 +182,7 @@ library_dir = "/Volumes/musics"
 ffmpeg = "ffmpeg"
 atomicparsley = "~/.local/bin/AtomicParsley"
 yt-dlp = "yt-dlp"
+adb = "adb"
 
 [download]
 user_agent = "Mozilla/5.0 ..."
@@ -162,6 +195,10 @@ format = "{artist}のお歌"
 [channels.KAF]
 artist = "花譜"
 category = "神椿Studio"
+
+# ADB同期設定（省略可）
+[sync]
+remote_music_dir = "Music"
 
 # プレイリスト生成設定（省略可）
 [playlists]
@@ -327,6 +364,7 @@ uv run --with pytest pytest tests/test_parser.py -v
 │   ├── tagger.py            # mutagen Opusタグ・アートワーク
 │   ├── organizer.py         # トラック番号採番・ファイル配置
 │   ├── playlist.py          # m3u8プレイリスト生成
+│   ├── sync.py              # ADB経由Android同期
 │   └── pipeline.py          # パイプラインオーケストレーション
 └── tests/
     ├── test_parser.py       # パーサーテスト (83ケース)

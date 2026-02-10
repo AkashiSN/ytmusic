@@ -12,6 +12,7 @@ from .downloader import download
 from .parser import diagnose_parse_failure, parse_title
 from .pipeline import discover_files, build_metadata, run_pipeline
 from .playlist import generate_all_playlists, generate_artist_playlist, generate_category_playlist
+from .sync import sync_files, sync_library, list_adb_devices
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -48,6 +49,18 @@ def cmd_process(args: argparse.Namespace) -> None:
                 print(f"  - {e}")
         sys.exit(1)
     print(f"\nProcessed {len(results)} track(s) successfully")
+
+    # Auto-sync to Android device
+    if not args.no_sync and not args.dry_run:
+        opus_files = [r.opus_player_path for r in results if r.opus_player_path]
+        if opus_files:
+            try:
+                list_adb_devices(config.adb)
+                print(f"\nSyncing {len(opus_files)} file(s) to device...")
+                synced = sync_files(opus_files, config)
+                print(f"Synced {synced} file(s)")
+            except Exception as e:
+                logging.warning("Auto-sync skipped (ADB not available): %s", e)
 
 
 def cmd_scan(args: argparse.Namespace) -> None:
@@ -135,6 +148,20 @@ def cmd_playlist(args: argparse.Namespace) -> None:
             print(f"  {p.name}")
 
 
+def cmd_sync(args: argparse.Namespace) -> None:
+    config = Config.load(find_config(args.config))
+    synced, skipped = sync_library(
+        config,
+        device_serial=args.device,
+        sd_card_path=args.sd_card,
+        dry_run=args.dry_run,
+    )
+    if args.dry_run:
+        print(f"\n[DRY-RUN] Would sync {synced} file(s), skip {skipped} file(s)")
+    else:
+        print(f"\nSynced {synced} file(s), skipped {skipped} file(s)")
+
+
 def cmd_download(args: argparse.Namespace) -> None:
     config = Config.load(find_config(args.config))
     urls: list[str] = []
@@ -170,6 +197,7 @@ def main(argv: list[str] | None = None) -> None:
     p_process.add_argument("--channel", help="Process specific channel only")
     p_process.add_argument("-i", "--interactive", action="store_true", help="Confirm each track")
     p_process.add_argument("--no-playlist", action="store_true", help="Skip playlist regeneration")
+    p_process.add_argument("--no-sync", action="store_true", help="Skip auto-sync to Android device")
     source_group = p_process.add_mutually_exclusive_group()
     source_group.add_argument(
         "--move-sources", action="store_true",
@@ -194,6 +222,12 @@ def main(argv: list[str] | None = None) -> None:
     p_playlist.add_argument("--artist", help="Generate playlist for specific artist")
     p_playlist.add_argument("--category", help="Generate playlist for specific category")
 
+    # sync
+    p_sync = subparsers.add_parser("sync", help="Sync library to Android via ADB")
+    p_sync.add_argument("-n", "--dry-run", action="store_true", help="Preview only")
+    p_sync.add_argument("--device", help="ADB device serial")
+    p_sync.add_argument("--sd-card", help="SD card path (e.g. /storage/XXXX-XXXX)")
+
     # download
     p_download = subparsers.add_parser("download", help="Download from YouTube")
     p_download.add_argument("url", nargs="?", help="YouTube URL")
@@ -211,6 +245,7 @@ def main(argv: list[str] | None = None) -> None:
         "scan": cmd_scan,
         "parse": cmd_parse,
         "playlist": cmd_playlist,
+        "sync": cmd_sync,
         "download": cmd_download,
     }
     handlers[args.command](args)

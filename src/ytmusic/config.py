@@ -61,6 +61,8 @@ class Config:
     playlist_output_dir: str = "Playlists/m3u8"
     playlist_artists: dict[str, str] = field(default_factory=dict)
     playlist_categories: dict[str, str] = field(default_factory=dict)
+    adb: str = "adb"
+    sync_remote_music_dir: str = "Music"
 
     def get_channel(self, channel_dir: str) -> ChannelConfig | None:
         return self.channels.get(channel_dir)
@@ -100,6 +102,7 @@ class Config:
             )
 
         playlists = data.get("playlists", {})
+        sync = data.get("sync", {})
 
         return cls(
             config_path=path,
@@ -115,4 +118,6 @@ class Config:
             playlist_output_dir=playlists.get("output_dir", "Playlists/m3u8"),
             playlist_artists=dict(playlists.get("artists", {})),
             playlist_categories=dict(playlists.get("categories", {})),
+            adb=tools.get("adb", "adb"),
+            sync_remote_music_dir=sync.get("remote_music_dir", "Music"),
         )
