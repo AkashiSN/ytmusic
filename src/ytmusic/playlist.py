@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import unicodedata
 from pathlib import Path
 
 from .config import Config
@@ -84,7 +85,7 @@ def write_playlist(tracks: list[str], output_path: Path) -> None:
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("#\n")
         for track in tracks:
-            f.write(f"{track}\n")
+            f.write(f"{unicodedata.normalize('NFC', track)}\n")
 
 
 def _generate_playlist(
