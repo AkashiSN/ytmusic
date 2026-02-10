@@ -11,8 +11,8 @@ from .config import Config, find_config
 from .downloader import download
 from .parser import diagnose_parse_failure, parse_title
 from .pipeline import discover_files, build_metadata, run_pipeline
-from .playlist import affected_playlists_for_results, generate_all_playlists, generate_artist_playlist, generate_category_playlist
-from .sync import sync_library
+from .playlist import generate_all_playlists, generate_artist_playlist, generate_category_playlist
+from .sync import sync_files, sync_library, list_adb_devices
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -52,22 +52,20 @@ def cmd_process(args: argparse.Namespace) -> None:
 
     # Auto-sync to Android device
     if not args.no_sync:
-        if args.dry_run:
-            sync_targets = [r.opus_player_path for r in results if r.opus_player_path]
-            if not args.no_playlist:
-                playlist_names = affected_playlists_for_results(results, config)
-                for name in playlist_names:
-                    sync_targets.append(config.playlist_output_path / name)
-            if sync_targets:
-                print(f"\n[DRY-RUN] Files to sync ({len(sync_targets)}):")
-                for f in sync_targets:
+        opus_files = [r.opus_player_path for r in results if r.opus_player_path]
+        if opus_files:
+            if args.dry_run:
+                print(f"\n[DRY-RUN] Files to sync ({len(opus_files)}):")
+                for f in opus_files:
                     print(f"  [SYNC] {f.relative_to(config.opus_root)}")
-        else:
-            try:
-                synced, skipped = sync_library(config)
-                print(f"\nSynced {synced} file(s), skipped {skipped} file(s)")
-            except Exception as e:
-                logging.warning("Auto-sync skipped (ADB not available): %s", e)
+            else:
+                try:
+                    list_adb_devices(config.adb)
+                    print(f"\nSyncing {len(opus_files)} file(s) to device...")
+                    synced = sync_files(opus_files, config)
+                    print(f"Synced {synced} file(s)")
+                except Exception as e:
+                    logging.warning("Auto-sync skipped (ADB not available): %s", e)
 
 
 def cmd_scan(args: argparse.Namespace) -> None:

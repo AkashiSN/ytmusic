@@ -98,55 +98,25 @@ def _resolve_sd_card(sd_card: str | None, serial: str, adb: str) -> str:
 
 def collect_remote_files(
     serial: str, remote_dir: str, adb: str = "adb",
-) -> dict[str, int]:
-    """Collect remote media files with sizes.
-
-    Returns dict mapping relative path to file size in bytes.
-    Size of -1 means size is unknown (fallback mode).
-    """
-    prefix = remote_dir.rstrip("/") + "/"
-
-    # Try stat for size-aware collection
+) -> set[str]:
+    """Collect set of relative media file paths on remote device."""
     result = subprocess.run(
         [adb, "-s", serial, "shell",
-         f"find {remote_dir} -type f -exec stat -c '%s %n' {{}} +"],
-        capture_output=True, text=True,
-    )
-    if result.returncode == 0 and result.stdout.strip():
-        files: dict[str, int] = {}
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            parts = line.split(" ", 1)
-            if len(parts) != 2:
-                continue
-            try:
-                size = int(parts[0])
-            except ValueError:
-                continue
-            path = parts[1]
-            if path.startswith(prefix):
-                rel = path[len(prefix):]
-                if _is_media_file(rel):
-                    files[rel] = size
-        return files
-
-    # Fallback: paths only (size unknown)
-    result = subprocess.run(
-        [adb, "-s", serial, "shell", "find", remote_dir, "-type", "f"],
+         "find", remote_dir, "-type", "f"],
         capture_output=True, text=True,
     )
     if result.returncode != 0:
-        return {}
-    files = {}
+        # Directory may not exist yet
+        return set()
+    prefix = remote_dir.rstrip("/") + "/"
+    paths: set[str] = set()
     for line in result.stdout.splitlines():
         line = line.strip()
         if line.startswith(prefix):
             rel = line[len(prefix):]
             if _is_media_file(rel):
-                files[rel] = -1
-    return files
+                paths.add(rel)
+    return paths
 
 
 def ensure_remote_dir(serial: str, remote_dir: str, adb: str = "adb") -> None:
@@ -206,24 +176,15 @@ def sync_library(
     synced = 0
     skipped = 0
     for rel_path in local_files:
+        if rel_path in remote_files:
+            skipped += 1
+            continue
+
         local_path = opus_root / rel_path
-        remote_size = remote_files.get(rel_path)
-
-        if remote_size is not None:
-            local_size = local_path.stat().st_size
-            if remote_size == -1 or remote_size == local_size:
-                skipped += 1
-                continue
-            # Size differs → update
-            action = "UPDATE"
-        else:
-            # New file
-            action = "SYNC"
-
         remote_path = f"{remote_base}/{rel_path}"
 
         if dry_run:
-            print(f"  [{action}] {rel_path}")
+            print(f"  [SYNC] {rel_path}")
             synced += 1
             continue
 
@@ -232,7 +193,7 @@ def sync_library(
         ensure_remote_dir(serial, remote_parent, config.adb)
 
         logger.info("Pushing: %s", rel_path)
-        print(f"  [{action}] {rel_path}")
+        print(f"  [PUSH] {rel_path}")
         push_file(local_path, serial, remote_path, config.adb)
         synced += 1
 
