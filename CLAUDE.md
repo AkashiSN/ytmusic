@@ -49,7 +49,7 @@ download → discover → parse → extract(webm→opus) → artwork → R128 �
 | `organizer.py` | トラック番号の自動採番とライブラリディレクトリへのファイル配置。ソースファイルの保持/移動/削除を `source_handling` パラメータで制御 |
 | `playlist.py` | m3u8 プレイリスト生成。`.exclude` 対応の再帰走査、アーティスト/カテゴリ単位の生成 |
 | `pipeline.py` | 全体のオーケストレーション。dry-run / interactive モード対応。処理後のプレイリスト自動再生成 |
-| `sync.py` | ADB 経由で Android SD カードへメディアファイルを転送。デバイス/SD カード自動検出、差分同期（相対パスベース）、対話的選択に対応 |
+| `sync.py` | ADB 経由で Android SD カードへメディアファイルを転送。デバイス/SD カード自動検出、ファイルサイズ比較による差分同期、対話的選択に対応 |
 
 ### 重要な設計判断
 
@@ -60,7 +60,7 @@ download → discover → parse → extract(webm→opus) → artwork → R128 �
 - **エラー蓄積**: `ProcessingResult` でエラーを収集しつつ処理を継続
 - **ソースファイル保持**: デフォルトではダウンロードした webm/m4a をそのまま残す。`--move-sources` でソース削除（Original/ にバックアップ）、`--clean-sources` でソース削除（バックアップなし）
 - **プレイリスト**: `process` 後にデフォルトで影響プレイリストを自動再生成（`--no-playlist` で無効化）。`[playlists]` 未設定時は既存機能に影響なし
-- **ADB 同期**: `process` 後にデフォルトで ADB 経由の自動同期を実行（`--no-sync` で無効化）。ADB 未接続時は警告のみでスキップ。`sync` コマンドでライブラリ全体の差分同期も可能。対象は `MEDIA_EXTENSIONS`（`.opus`, `.flac`, `.mp3`, `.m4a`, `.ogg`, `.wav`, `.aac`, `.wma`, `.m3u8`）に一致するファイル
+- **ADB 同期**: `process` 後にデフォルトで `sync_library()` による自動同期を実行（`--no-sync` で無効化）。ファイルサイズ比較による差分検出で、新規ファイルとサイズ変更ファイル（プレイリスト含む）を転送。ADB 未接続時は警告のみでスキップ。`sync` コマンドでライブラリ全体の差分同期も可能。対象は `MEDIA_EXTENSIONS`（`.opus`, `.flac`, `.mp3`, `.m4a`, `.ogg`, `.wav`, `.aac`, `.wma`, `.m3u8`）に一致するファイル
 
 ### テスト
 
