@@ -51,16 +51,21 @@ def cmd_process(args: argparse.Namespace) -> None:
     print(f"\nProcessed {len(results)} track(s) successfully")
 
     # Auto-sync to Android device
-    if not args.no_sync and not args.dry_run:
+    if not args.no_sync:
         opus_files = [r.opus_player_path for r in results if r.opus_player_path]
         if opus_files:
-            try:
-                list_adb_devices(config.adb)
-                print(f"\nSyncing {len(opus_files)} file(s) to device...")
-                synced = sync_files(opus_files, config)
-                print(f"Synced {synced} file(s)")
-            except Exception as e:
-                logging.warning("Auto-sync skipped (ADB not available): %s", e)
+            if args.dry_run:
+                print(f"\n[DRY-RUN] Files to sync ({len(opus_files)}):")
+                for f in opus_files:
+                    print(f"  [SYNC] {f.relative_to(config.opus_root)}")
+            else:
+                try:
+                    list_adb_devices(config.adb)
+                    print(f"\nSyncing {len(opus_files)} file(s) to device...")
+                    synced = sync_files(opus_files, config)
+                    print(f"Synced {synced} file(s)")
+                except Exception as e:
+                    logging.warning("Auto-sync skipped (ADB not available): %s", e)
 
 
 def cmd_scan(args: argparse.Namespace) -> None:

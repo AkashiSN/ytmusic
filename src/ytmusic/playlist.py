@@ -136,11 +136,11 @@ def generate_all_playlists(config: Config) -> list[Path]:
     return generated
 
 
-def generate_playlists_for_results(
+def affected_playlists_for_results(
     results: list[ProcessingResult],
     config: Config,
-) -> list[Path]:
-    """Regenerate playlists affected by processing results."""
+) -> list[str]:
+    """Return list of playlist filenames affected by processing results."""
     if not config.playlist_artists and not config.playlist_categories:
         return []
 
@@ -160,9 +160,29 @@ def generate_playlists_for_results(
         if album_artist in config.playlist_artists:
             affected_artists.add(album_artist)
 
-    generated: list[Path] = []
+    names: list[str] = []
     for name in affected_artists:
-        generated.append(generate_artist_playlist(name, config))
+        names.append(f"{name}.m3u8")
     for name in affected_categories:
-        generated.append(generate_category_playlist(name, config))
+        names.append(f"00_{name}.m3u8")
+    return names
+
+
+def generate_playlists_for_results(
+    results: list[ProcessingResult],
+    config: Config,
+) -> list[Path]:
+    """Regenerate playlists affected by processing results."""
+    names = affected_playlists_for_results(results, config)
+    if not names:
+        return []
+
+    generated: list[Path] = []
+    for name in names:
+        if name.startswith("00_"):
+            cat_name = name[3:].removesuffix(".m3u8")
+            generated.append(generate_category_playlist(cat_name, config))
+        else:
+            artist_name = name.removesuffix(".m3u8")
+            generated.append(generate_artist_playlist(artist_name, config))
     return generated
