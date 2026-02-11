@@ -104,6 +104,38 @@ CASES = [
         ["春猿火"],
         "C1",
     ),
+    # O1-LV: <歌手> #<番号>「<曲>」...from <イベント>【Live ver.】
+    (
+        "春猿火 # 62「巫女」「META」from KAMITSUBAKI FES '24【Live ver.】",
+        "春猿火",
+        "巫女 【KAMITSUBAKI FES '24 Live ver.】",
+        ["春猿火"],
+        "O1-LV",
+    ),
+    # O1-LV with 【Live ver.】 prefix
+    (
+        "【Live ver.】春猿火 # 63「(A)letheia」from 春猿火×ヰ世界情緒 TWO-MAN LIVE「Singularity Live Vol.4」",
+        "春猿火",
+        "(A)letheia 【Singularity Vol.4 Live ver.】",
+        ["春猿火", "ヰ世界情緒"],
+        "O1-LV",
+    ),
+    # L4: 【Live ver.】<歌手>「<曲>」from ...「<イベント>」 (without #number)
+    (
+        "【Live ver.】春猿火 × ヰ世界情緒「牢獄」from 春猿火×ヰ世界情緒 TWO-MAN LIVE「Singularity Live Vol.4」",
+        "春猿火",
+        "牢獄 【Singularity Vol.4 Live ver.】",
+        ["春猿火", "ヰ世界情緒"],
+        "L4",
+    ),
+    # C10: 【歌ってみた】「<曲>」covered by <歌手>
+    (
+        "【歌ってみた】「魔女 RAP VERSION 2025」covered by 春猿火",
+        "春猿火",
+        "魔女【RAP VERSION 2025】 (Cover)",
+        ["春猿火"],
+        "C10",
+    ),
 
     # === 幸祜 - KOKO - ===
     # O5: No.<番号>　<歌手> -<英名>- 「<曲>」【...】
@@ -157,12 +189,35 @@ CASES = [
         ["KOKO"],
         "O5",
     ),
+    # O5 with prefix 【...】 bracket
+    (
+        "【鳴潮＂千咲＂キャラクターソング】No.046　幸祜 -KOKO- 「切り咲く」【Official Music Video】",
+        "KOKO",
+        "切り咲く",
+        ["KOKO"],
+        "O5",
+    ),
     (
         "【歌ってみた】CR詠ZY ⧸ covered by 幸祜",
         "KOKO",
         "CR詠ZY (Cover)",
         ["幸祜"],
         "C2",
+    ),
+    # C9: 【歌ってみた】<曲> ⧸ <原曲者> covered by <歌手>
+    (
+        "【歌ってみた】心做し ⧸ 蝶々P covered by 幸祜",
+        "KOKO",
+        "心做し (Cover)",
+        ["幸祜"],
+        "C9",
+    ),
+    (
+        "【歌ってみた】ライオン ⧸ May'n covered by 幸祜&ヰ世界情緒",
+        "KOKO",
+        "ライオン (Cover)",
+        ["幸祜", "ヰ世界情緒"],
+        "C9",
     ),
 
     # === 明透 -ᴀsᴜ- ===
@@ -268,6 +323,14 @@ CASES = [
         ["明透"],
         "C5",
     ),
+    # L3: <曲> - <歌手> (from ...「<イベント>」...)【...】
+    (
+        "ライトイヤーズ - 明透×琶舞 (from 明透2nd ONE-MAN 「BIRTH」2025.08.30)【3D-LIVE】",
+        "明透",
+        "ライトイヤーズ 【BIRTH Live ver.】",
+        ["明透", "琶舞"],
+        "L3",
+    ),
 
     # === ヰ世界情緒 -Isekaijoucho- ===
     # C2
@@ -329,6 +392,37 @@ CASES = [
         ["ヰ世界情緒", "花譜"],
         "C2",
     ),
+    # O1-L: live version with 【 from ... 】
+    (
+        "ヰ世界情緒 #61「アンビバレント」【 from 春猿火×ヰ世界情緒 TWO-MAN LIVE「Singularity Live Vol.4」】",
+        "ヰ世界情緒",
+        "アンビバレント 【Singularity Vol.4 Live ver.】",
+        ["ヰ世界情緒", "春猿火"],
+        "O1-L",
+    ),
+    (
+        "ヰ世界情緒 #62「生存」【 from 春猿火×ヰ世界情緒 TWO-MAN LIVE「Singularity Live Vol.4」】",
+        "ヰ世界情緒",
+        "生存 【Singularity Vol.4 Live ver.】",
+        ["ヰ世界情緒", "春猿火"],
+        "O1-L",
+    ),
+    # O10: <歌手>「<曲>」【オリジナルMV】 (without #number)
+    (
+        "ヰ世界情緒×春猿火「LOVEぃ」【オリジナルMV】",
+        "ヰ世界情緒",
+        "LOVEぃ",
+        ["ヰ世界情緒", "春猿火"],
+        "O10",
+    ),
+    # O10: <歌手>「<曲>」【Dance Practice】
+    (
+        "春猿火×ヰ世界情緒「LOVEぃ」【Dance Practice】",
+        "春猿火",
+        "LOVEぃ",
+        ["春猿火", "ヰ世界情緒"],
+        "O10",
+    ),
     # O1-R: rearranged ver in O1 format
     (
         "ヰ世界情緒 × 春猿火 #60「BREATHE(Rearranged ver.)」【オリジナルMV】",
@@ -384,6 +478,14 @@ CASES = [
         "花譜",
         "おへんぢください (Cover)",
         ["花譜"],
+        "C3",
+    ),
+    # C3: 【歌ってみた】<曲> by VALIS【合唱】 (chorus expansion)
+    (
+        "【歌ってみた】機械の声 by VALIS【合唱】",
+        "VALIS",
+        "機械の声 (Cover)",
+        ["VALIS", "CHINO", "MYU", "NEFFY", "NINA", "RARA", "VITTE"],
         "C3",
     ),
     # O3: 【組曲N】<歌手> #<番号> 「<曲>」【オリジナルMV】
@@ -445,6 +547,14 @@ CASES = [
         "わたしは禁忌 (Cover)",
         ["花譜"],
         "C3",
+    ),
+    # O1 without 【】 brackets around オリジナルMV
+    (
+        "花譜 #154 「ありふれてたい」 オリジナルMV",
+        "花譜",
+        "ありふれてたい",
+        ["花譜"],
+        "O1",
     ),
 
     # === RIM ===
@@ -627,6 +737,14 @@ CASES = [
         "生きるよすが (Cover)",
         ["RARA"],
         "C4",
+    ),
+    # L2: 【VALIS】<曲> Live ver.【...】 (without #event)
+    (
+        "【VALIS】彷徨フォーエバー  Live ver.【Act.2】",
+        "VALIS",
+        "彷徨フォーエバー 【Live ver.】",
+        ["VALIS", "CHINO", "MYU", "NEFFY", "NINA", "RARA", "VITTE"],
+        "L2",
     ),
     # O7
     (

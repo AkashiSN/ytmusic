@@ -34,8 +34,8 @@ def _strip(s: str) -> str:
 
 
 def _split_artists(name: str) -> list[str]:
-    """Split artist names joined by × into a list."""
-    parts = re.split(r"\s*[×]\s*", name)
+    """Split artist names joined by × or & into a list."""
+    parts = re.split(r"\s*[×&]\s*", name)
     return [_strip(p) for p in parts if _strip(p)]
 
 
@@ -148,6 +148,57 @@ def _c2(title: str, channel_artist: str) -> ParseResult | None:
     )
 
 
+def _c9(title: str, channel_artist: str) -> ParseResult | None:
+    """C9: 【歌ってみた】<曲> ⧸ <原曲者> covered by <歌手>"""
+    m = re.match(
+        r"【歌ってみた】(.+?)\s*⧸\s*(.+?)\s+covered\s+by\s+(.+)",
+        title, re.IGNORECASE,
+    )
+    if not m:
+        return None
+    song = _strip(m.group(1))
+    original = _strip(m.group(2))
+    performer = _strip(m.group(3))
+    artists = _split_artists(performer)
+    return ParseResult(
+        title=f"{song} (Cover)",
+        artists=artists,
+        is_cover=True,
+        original_artist=original,
+        pattern_id="C9",
+    )
+
+
+def _format_version_brackets(song: str) -> str:
+    """Wrap trailing VERSION descriptor in 【】 brackets.
+
+    e.g. '魔女 RAP VERSION 2025' → '魔女【RAP VERSION 2025】'
+    """
+    m = re.match(r"(.+?)\s+((?:\S+\s+)*VERSION(?:\s+\S+)*)$", song)
+    if m:
+        return f"{_strip(m.group(1))}【{m.group(2)}】"
+    return song
+
+
+def _c10(title: str, channel_artist: str) -> ParseResult | None:
+    """C10: 【歌ってみた】「<曲>」covered by <歌手>"""
+    m = re.match(
+        r"【歌ってみた】「(.+?)」\s*covered\s+by\s+(.+)",
+        title, re.IGNORECASE,
+    )
+    if not m:
+        return None
+    song = _format_version_brackets(_strip(m.group(1)))
+    performer = _strip(m.group(2))
+    artists = _split_artists(performer)
+    return ParseResult(
+        title=f"{song} (Cover)",
+        artists=artists,
+        is_cover=True,
+        pattern_id="C10",
+    )
+
+
 def _c5(title: str, channel_artist: str) -> ParseResult | None:
     """C5: 【歌ってみた】<曲> - <原曲者> covered by <歌手>"""
     m = re.match(
@@ -212,16 +263,21 @@ def _c7(title: str, channel_artist: str) -> ParseResult | None:
 
 
 def _c3(title: str, channel_artist: str) -> ParseResult | None:
-    """C3: 【歌ってみた】<曲> by <歌手>"""
+    """C3: 【歌ってみた】<曲> by <歌手>
+    Also handles: 【歌ってみた】<曲> by <歌手>【合唱】 (VALIS chorus expansion)"""
     m = re.match(
-        r"【歌ってみた】(.+?)\s+by\s+(.+?)(?:\s*$)",
+        r"【歌ってみた】(.+?)\s+by\s+(.+?)(?:\s*【合唱】)?\s*$",
         title,
     )
     if not m:
         return None
     song = _strip(m.group(1))
     performer = _strip(m.group(2))
-    artists = _split_artists(performer)
+    is_chorus = "【合唱】" in title
+    if performer == "VALIS" and is_chorus:
+        artists = list(VALIS_MEMBERS)
+    else:
+        artists = _split_artists(performer)
     return ParseResult(
         title=f"{song} (Cover)",
         artists=artists,
@@ -282,9 +338,10 @@ def _o3(title: str, channel_artist: str) -> ParseResult | None:
 
 def _o1(title: str, channel_artist: str) -> ParseResult | None:
     """O1: <歌手> #<番号>「<曲>」【オリジナルMV】
-    Also handles: <歌手> # <番号>「<曲>」【オリジナルMV】"""
+    Also handles: <歌手> # <番号>「<曲>」【オリジナルMV】
+    Also handles: <歌手> #<番号> 「<曲>」 オリジナルMV (without brackets)"""
     m = re.match(
-        r"(.+?)\s*#\s*(\d+)\s*「(.+?)」\s*【オリジナルMV】\s*$",
+        r"(.+?)\s*#\s*(\d+)\s*「(.+?)」\s*【?オリジナルMV】?\s*$",
         title,
     )
     if not m:
@@ -306,10 +363,37 @@ def _o1(title: str, channel_artist: str) -> ParseResult | None:
     )
 
 
-def _o5(title: str, channel_artist: str) -> ParseResult | None:
-    """O5: No.<番号>　<歌手> -<英名>- 「<曲>」【...】"""
+def _o10(title: str, channel_artist: str) -> ParseResult | None:
+    """O10: <歌手>「<曲>」【オリジナルMV】 (without #number)
+    Also handles: <歌手>「<曲>」【Dance Practice】"""
     m = re.match(
-        r"No\.(\d+)\s+(.+?)\s+-\w+-\s+「(.+?)」\s*【(.+?)】\s*$",
+        r"(.+?)「(.+?)」\s*【?(?:オリジナルMV|Dance Practice)】?\s*$",
+        title,
+    )
+    if not m:
+        return None
+    performer = _strip(m.group(1))
+    song = _strip(m.group(2))
+    song, feat_name = _parse_feat(song)
+    artists = _split_artists(performer)
+    if feat_name:
+        if feat_name not in artists:
+            artists.append(feat_name)
+        display_title = f"{song} feat. {feat_name}"
+    else:
+        display_title = song
+    return ParseResult(
+        title=display_title,
+        artists=artists,
+        pattern_id="O10",
+    )
+
+
+def _o5(title: str, channel_artist: str) -> ParseResult | None:
+    """O5: No.<番号>　<歌手> -<英名>- 「<曲>」【...】
+    Also handles: 【...】No.<番号>　<歌手> -<英名>- 「<曲>」【...】 (with prefix bracket)"""
+    m = re.match(
+        r"(?:【.+?】)?No\.(\d+)\s+(.+?)\s+-\w+-\s+「(.+?)」\s*【(.+?)】\s*$",
         title,
     )
     if not m:
@@ -431,6 +515,54 @@ def _l1(title: str, channel_artist: str) -> ParseResult | None:
     )
 
 
+def _l2(title: str, channel_artist: str) -> ParseResult | None:
+    """L2: 【VALIS】<曲> Live ver.【...】 (without #event)"""
+    m = re.match(
+        r"【VALIS】(.+?)\s+Live\s+ver\.\s*【(.+?)】\s*$",
+        title,
+    )
+    if not m:
+        return None
+    song = _strip(m.group(1))
+    return ParseResult(
+        title=f"{song} 【Live ver.】",
+        artists=list(VALIS_MEMBERS),
+        is_live=True,
+        pattern_id="L2",
+    )
+
+
+def _l3(title: str, channel_artist: str) -> ParseResult | None:
+    """L3: <曲> - <歌手> (from ...「<イベント>」...)【...】"""
+    m = re.match(
+        r"(.+?)\s+-\s+(.+?)\s+\(from\s+(.+?)\)\s*(?:【.+?】)?\s*$",
+        title,
+    )
+    if not m:
+        return None
+    song = _strip(m.group(1))
+    performer = _strip(m.group(2))
+    from_content = m.group(3)
+    artists = _split_artists(performer)
+    # Extract event name from inner 「」 brackets
+    event_m = re.search(r"「(.+?)」", from_content)
+    event = _strip(event_m.group(1)) if event_m else ""
+    # Strip trailing date if no event found
+    if not event:
+        event = re.sub(r"\s*\d{4}\.\d{1,2}\.\d{1,2}\s*$", "", from_content).strip()
+    if event:
+        display_title = f"{song} 【{event} Live ver.】"
+    else:
+        display_title = f"{song} 【Live ver.】"
+    return ParseResult(
+        title=display_title,
+        artists=artists,
+        is_live=True,
+        live_event=event,
+        pattern_id="L3",
+    )
+
+
 def _c8(title: str, channel_artist: str) -> ParseResult | None:
     """C8: <曲> (Rearranged Ver.) - <歌手> ⧸ <英名>"""
     m = re.match(
@@ -467,10 +599,133 @@ def _o1_rearranged(title: str, channel_artist: str) -> ParseResult | None:
     )
 
 
+def _o1_live(title: str, channel_artist: str) -> ParseResult | None:
+    """O1-L: <歌手> #<番号>「<曲>」【 from ... LIVE「<イベント>」】"""
+    m = re.match(
+        r"(.+?)\s*#\s*(\d+)\s*「(.+?)」\s*【\s*from\s+(.+?)】\s*$",
+        title,
+    )
+    if not m:
+        return None
+    performer = _strip(m.group(1))
+    song = _strip(m.group(3))
+    bracket_content = m.group(4)
+    song, feat_name = _parse_feat(song)
+    artists = _split_artists(performer)
+    if feat_name:
+        if feat_name not in artists:
+            artists.append(feat_name)
+        display_title = f"{song} feat. {feat_name}"
+    else:
+        display_title = song
+    # Extract additional artists from "from <artist1>×<artist2> ..." before LIVE/event
+    from_artists_m = re.match(r"(.+?)\s+(?:TWO-MAN\s+)?LIVE", bracket_content)
+    if from_artists_m:
+        for a in _split_artists(from_artists_m.group(1)):
+            if a not in artists:
+                artists.append(a)
+    # Extract event name from inner 「」 brackets, strip redundant "Live"
+    event_m = re.search(r"「(.+?)」", bracket_content)
+    event = _strip(event_m.group(1)) if event_m else ""
+    if event:
+        event = re.sub(r"\s+Live\b", "", event, flags=re.IGNORECASE).strip()
+    if event:
+        display_title = f"{display_title} 【{event} Live ver.】"
+    else:
+        display_title = f"{display_title} 【Live ver.】"
+    return ParseResult(
+        title=display_title,
+        artists=artists,
+        is_live=True,
+        live_event=event,
+        pattern_id="O1-L",
+    )
+
+
+def _o1_live_ver(title: str, channel_artist: str) -> ParseResult | None:
+    """O1-LV: <歌手> #<番号>「<曲>」...from <イベント>【Live ver.】
+    Also handles: 【Live ver.】<歌手> #<番号>「<曲>」from ..."""
+    m = re.match(
+        r"(?:【Live\s+ver\.】)?\s*(.+?)\s*#\s*(\d+)\s*「(.+?)」.*?from\s+(.+?)(?:\s*【Live\s+ver\.】)?\s*$",
+        title,
+    )
+    if not m:
+        return None
+    performer = _strip(m.group(1))
+    song = _strip(m.group(3))
+    from_content = _strip(m.group(4))
+    song, feat_name = _parse_feat(song)
+    artists = _split_artists(performer)
+    if feat_name:
+        if feat_name not in artists:
+            artists.append(feat_name)
+        display_title = f"{song} feat. {feat_name}"
+    else:
+        display_title = song
+    # Extract additional artists from "from <artist1>×<artist2> ..." before LIVE/event
+    from_artists_m = re.match(r"(.+?)\s+(?:TWO-MAN\s+)?LIVE", from_content)
+    if from_artists_m:
+        for a in _split_artists(from_artists_m.group(1)):
+            if a not in artists:
+                artists.append(a)
+    # Extract event name from inner 「」 if present, strip redundant "Live"
+    event_m = re.search(r"「(.+?)」", from_content)
+    if event_m:
+        event = _strip(event_m.group(1))
+        event = re.sub(r"\s+Live\b", "", event, flags=re.IGNORECASE).strip()
+    else:
+        event = from_content
+    return ParseResult(
+        title=f"{display_title} 【{event} Live ver.】",
+        artists=artists,
+        is_live=True,
+        live_event=event,
+        pattern_id="O1-LV",
+    )
+
+
+def _l4(title: str, channel_artist: str) -> ParseResult | None:
+    """L4: 【Live ver.】?<歌手>「<曲>」from ...「<イベント>」【Live ver.】?
+    Like O1-LV but without #number."""
+    m = re.match(
+        r"(?:【Live\s+ver\.】)?\s*(.+?)「(.+?)」.*?from\s+(.+?)(?:\s*【Live\s+ver\.】)?\s*$",
+        title,
+    )
+    if not m:
+        return None
+    performer = _strip(m.group(1))
+    song = _strip(m.group(2))
+    from_content = _strip(m.group(3))
+    song, feat_name = _parse_feat(song)
+    artists = _split_artists(performer)
+    if feat_name:
+        if feat_name not in artists:
+            artists.append(feat_name)
+        display_title = f"{song} feat. {feat_name}"
+    else:
+        display_title = song
+    # Extract event name from inner 「」 if present, strip redundant "Live"
+    event_m = re.search(r"「(.+?)」", from_content)
+    if event_m:
+        event = _strip(event_m.group(1))
+        event = re.sub(r"\s+Live\b", "", event, flags=re.IGNORECASE).strip()
+    else:
+        event = from_content
+    return ParseResult(
+        title=f"{display_title} 【{event} Live ver.】",
+        artists=artists,
+        is_live=True,
+        live_event=event,
+        pattern_id="L4",
+    )
+
+
 # Pattern priority order
 _PATTERNS = [
     _c1,   # 【歌ってみた】「<曲> ⧸ <原曲者>」covered by ...
     _c2,   # 【歌ってみた】<曲> ⧸ covered by ...
+    _c9,   # 【歌ってみた】<曲> ⧸ <原曲者> covered by ...
+    _c10,  # 【歌ってみた】「<曲>」covered by ...
     _c5,   # 【歌ってみた】<曲> - <原曲者> covered by ...
     _c6,   # <曲> - <原曲者> Covered by <歌手> ⧸ ...
     _c7,   # HIMEHINA『<曲>』Cover
@@ -478,12 +733,18 @@ _PATTERNS = [
     _c3,   # 【歌ってみた】<曲> by <歌手>
     _o3,   # 【組曲N】<歌手> #<番号> 「<曲>」【オリジナルMV】
     _o1_rearranged,  # <歌手> #<番号>「<曲>(Rearranged ver.)」【オリジナルMV】
+    _o1_live,  # <歌手> #<番号>「<曲>」【 from ... LIVE「<イベント>」】
+    _o1_live_ver,  # <歌手> #<番号>「<曲>」...from <イベント>【Live ver.】
     _o1,   # <歌手> #<番号>「<曲>」【オリジナルMV】
+    _o10,  # <歌手>「<曲>」【オリジナルMV】
     _o5,   # No.<番号>　<歌手> -<英名>- 「<曲>」【...】
     _o6,   # 【ソロオリジナルMV】VALIS − <番号>「<曲>」by <歌手>【...】
     _o7,   # 【オリジナルMV】VALIS − <番号>「<曲>」【合唱】
     _o8,   # HIMEHINA『<曲>』MV #<タグ>
     _l1,   # 【VALIS】<曲> #<イベント> Live ver.【...】
+    _l2,   # 【VALIS】<曲> Live ver.【...】
+    _l4,   # 【Live ver.】?<歌手>「<曲>」from ...「<イベント>」【Live ver.】?
+    _l3,   # <曲> - <歌手> (from ...「<イベント>」...)【...】
     _c8,   # <曲> (Rearranged Ver.) - <歌手> ⧸ ...
     _o9,   # <歌手> - <曲> ⧸ <英名> - <英曲名>
 ]
@@ -510,6 +771,8 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
 _PATTERN_SUMMARIES: list[tuple[str, str]] = [
     ("C1", "【歌ってみた】「<曲> ⧸ <原曲者>」covered by <歌手>"),
     ("C2", "【歌ってみた】<曲> ⧸ covered by <歌手>"),
+    ("C9", "【歌ってみた】<曲> ⧸ <原曲者> covered by <歌手>"),
+    ("C10", "【歌ってみた】「<曲>」covered by <歌手>"),
     ("C5", "【歌ってみた】<曲> - <原曲者> covered by <歌手>"),
     ("C6", "<曲> - <原曲者> Covered by <歌手> ⧸ <英名>"),
     ("C7", "HIMEHINA『<曲>』Cover"),
@@ -518,13 +781,19 @@ _PATTERN_SUMMARIES: list[tuple[str, str]] = [
     ("C8", "<曲> (Rearranged Ver.) - <歌手> ⧸ <英名>"),
     ("O3", "【組曲N】<歌手> #<番号> 「<曲>」【オリジナルMV】"),
     ("O1-R", "<歌手> #<番号>「<曲>(Rearranged ver.)」【オリジナルMV】"),
+    ("O1-L", "<歌手> #<番号>「<曲>」【 from ... LIVE「<イベント>」】"),
+    ("O1-LV", "<歌手> #<番号>「<曲>」...from <イベント>【Live ver.】"),
     ("O1", "<歌手> #<番号>「<曲>」【オリジナルMV】"),
+    ("O10", "<歌手>「<曲>」【オリジナルMV】"),
     ("O5", "No.<番号>　<歌手> -<英名>- 「<曲>」【...】"),
     ("O6", "【ソロオリジナルMV】VALIS − <番号>「<曲>」by <歌手>【...】"),
     ("O7", "【オリジナルMV】VALIS − <番号>「<曲>」【合唱】"),
     ("O8", "HIMEHINA『<曲>』MV #<タグ>"),
     ("O9", "<歌手> - <曲> ⧸ <英名> - <英曲名>"),
     ("L1", "【VALIS】<曲> #<イベント> Live ver.【...】"),
+    ("L2", "【VALIS】<曲> Live ver.【...】"),
+    ("L4", "<歌手>「<曲>」from ...「<イベント>」【Live ver.】"),
+    ("L3", "<曲> - <歌手> (from ...「<イベント>」...)【...】"),
 ]
 
 _STRUCTURAL_FEATURES: list[tuple[str, str]] = [
