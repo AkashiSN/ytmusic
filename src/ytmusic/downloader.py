@@ -23,6 +23,7 @@ def download(
     if output_dir is None:
         output_dir = config.youtube_dir
 
+    failed: list[str] = []
     for url in urls:
         output_template = str(output_dir / "%(uploader)s" / "%(epoch)s-%(title)s.%(ext)s")
         cmd = [
@@ -32,10 +33,20 @@ def download(
             "--extract-audio",
             "--format", "ba[ext=webm]",
             "--keep-video",
-            "--audio-format", "alac",
+            "--audio-format", "aac",
             "--embed-thumbnail",
+            "--convert-thumbnails", "jpg",
             "--output", output_template,
             url,
         ]
         logger.info("Downloading: %s", url)
-        subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd)
+        if result.returncode != 0:
+            logger.error("Failed to download: %s", url)
+            failed.append(url)
+
+    if failed:
+        logger.error("%d/%d download(s) failed", len(failed), len(urls))
+        for url in failed:
+            print(f"  FAILED: {url}")
+        raise RuntimeError(f"{len(failed)} download(s) failed")
